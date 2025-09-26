@@ -5,6 +5,8 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
+import multer from "multer";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,30 +19,69 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// Ensure uploads dir exists
+const uploadDir = path.join(__dirname, "public", "uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase() || ".png";
+    const name = crypto.randomBytes(16).toString("hex") + ext;
+    cb(null, name);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(file.mimetype);
+    cb(ok ? null : new Error("Only PNG/JPG/WebP allowed"));
+  }
+});
+
 // Health check for Render
-app.get("/health", (req, res) => res.status(200).send("OK"));
+app.get("/health", (_req, res) => res.status(200).send("OK"));
 
 // ===== In-memory store =====
-const rooms = new Map();
-const userRooms = new Map();
+const rooms = new Map(); // code -> {code,name,createdAt,messages[],participants:Set}
+const userRooms = new Map(); // email -> Set<code>
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 const genCode = (n = 8) =>
   Array.from(crypto.randomFillSync(new Uint32Array(n)))
     .map(x => ALPHABET[x % ALPHABET.length]).join("");
 
-const ensureRoom = (code) => {
+const ensureRoom = (code, roomName = "") => {
   if (!rooms.has(code)) {
-    rooms.set(code, { code, createdAt: Date.now(), messages: [], participants: new Set() });
+    rooms.set(code, {
+      code,
+      name: (roomName || "").toString().slice(0, 80),
+      createdAt: Date.now(),
+      messages: [],
+      participants: new Set()
+    });
   }
   return rooms.get(code);
 };
+
 const attachUserToRoom = (email, code) => {
   if (!userRooms.has(email)) userRooms.set(email, new Set());
   userRooms.get(email).add(code);
 };
 
-// ===== REST API =====
+// Upload avatar
+app.post("/api/upload-avatar", upload.single("avatar"), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const urlPath = `/uploads/${req.file.filename}`;
+    res.json({ url: urlPath });
+  } catch (e) {
+    res.status(400).json({ error: e.message || "Upload failed" });
+  }
+});
+
+// ===== REST =====
 app.get("/api/my-rooms", (req, res) => {
   const email = String(req.query.email || "").trim().toLowerCase();
   const codes = [...(userRooms.get(email) || [])];
@@ -49,6 +90,7 @@ app.get("/api/my-rooms", (req, res) => {
     .filter(Boolean)
     .map(r => ({
       code: r.code,
+      roomName: r.name || "",
       createdAt: r.createdAt,
       lastMessageAt: r.messages.at(-1)?.ts ?? r.createdAt,
       participants: [...r.participants]
@@ -58,34 +100,35 @@ app.get("/api/my-rooms", (req, res) => {
 });
 
 app.post("/api/create-room", (req, res) => {
-  const { name, email } = req.body || {};
+  const { email, roomName } = req.body || {};
   const code = genCode(8);
-  const room = ensureRoom(code);
+  const room = ensureRoom(code, roomName);
   if (email) {
     room.participants.add(email.toLowerCase());
     attachUserToRoom(email.toLowerCase(), code);
   }
-  res.json({ code });
+  res.json({ code, roomName: room.name || "" });
 });
 
 app.post("/api/join-room", (req, res) => {
-  const { code, name, email } = req.body || {};
+  const { code, email } = req.body || {};
   if (!code || !rooms.has(code)) return res.status(404).json({ error: "Room not found" });
   const room = rooms.get(code);
   if (email) {
     room.participants.add(email.toLowerCase());
     attachUserToRoom(email.toLowerCase(), code);
   }
-  res.json({ ok: true });
+  res.json({ ok: true, roomName: room.name || "" });
 });
 
 // ===== Socket.IO =====
 io.on("connection", (socket) => {
-  socket.on("join", ({ code, name, email }) => {
+  socket.on("join", ({ code, name, email, avatarUrl }) => {
     if (!code || !rooms.has(code)) { socket.emit("errorMsg", "Room not found."); return; }
     socket.join(code);
-    socket.data.user = { code, name, email: (email||"").toLowerCase() };
-    socket.emit("history", rooms.get(code).messages);
+    socket.data.user = { code, name, email: (email||"").toLowerCase(), avatarUrl: avatarUrl || "" };
+    const room = rooms.get(code);
+    socket.emit("history", { roomName: room.name || "", messages: room.messages });
     socket.to(code).emit("system", `${name || "Someone"} joined the chat.`);
   });
 
@@ -96,7 +139,8 @@ io.on("connection", (socket) => {
       name: u.name || "Anonymous",
       email: u.email || "",
       text: String(text || "").slice(0, 2000),
-      ts: Date.now()
+      ts: Date.now(),
+      avatarUrl: u.avatarUrl || ""
     };
     const room = rooms.get(u.code);
     if (!room) return;

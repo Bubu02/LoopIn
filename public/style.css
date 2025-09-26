@@ -1,15 +1,40 @@
-:root { --bg:#0f172a; --fg:#e2e8f0; --muted:#94a3b8; --card:#111827; --border:#1f2937; --accent:#22d3ee; }
+/* Pitch dark theme */
+:root {
+  --bg:#000000;
+  --fg:#e5e7eb;
+  --muted:#9aa0a6;
+  --card:#0b0b0b;
+  --border:#1b1b1b;
+  --accent:#22d3ee;
+}
+
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;}
+body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial; }
 .hidden { display:none !important; }
 .mt { margin-top: 10px; }
 .muted { color: var(--muted); font-size: 12px; }
 .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 2px; font-weight: 800; font-size: 20px; }
 
-.topbar { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid var(--border); }
+.topbar { position:relative; display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid var(--border); background:#040404; }
 .topbar h1 { font-size:18px; margin:0; }
 .grow { flex:1; }
+
+/* Profile area */
+.mebox { display:flex; align-items:center; gap:8px; margin-right:8px; cursor:pointer; }
+.avatar { border-radius:50%; border:1px solid var(--border); object-fit:cover; background:#111; }
+.avatar.sm { width:28px; height:28px; }
+.avatar.lg { width:64px; height:64px; }
+.avatar.xl { width:256px; height:256px; display:block; margin:auto; border-radius:16px; }
+
+.menu {
+  position:absolute; top:56px; right:190px;  /* approximate near avatar; responsive enough */
+  background: #0e0e0e; border:1px solid var(--border); border-radius:12px;
+  padding:8px; display:flex; flex-direction:column; gap:6px; z-index:20; min-width:160px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+.menu button { background:transparent; border:1px dashed #353535; color:var(--fg); padding:8px 10px; border-radius:10px; text-align:left; }
+.menu button:hover { border-color:#4b4b4b; }
 
 .grid { display:grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 53px);}
 @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } aside { order:2 } .content { order:1 } }
@@ -18,17 +43,42 @@ aside { border-right:1px solid var(--border); padding:16px; }
 .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px; }
 .row { display:flex; gap:8px; align-items:center; }
 .col { display:flex; flex-direction:column; gap:10px; }
-button, input { padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0b1220; color:var(--fg); }
-button { cursor:pointer; }
+button, input { padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0d0d0d; color:var(--fg); }
+input::placeholder { color:#6b7280; }
+button { cursor:pointer; transition: transform .02s ease; }
+button:active { transform: translateY(1px); }
 button.primary { background:var(--accent); color:#001018; border:none; font-weight:700; }
-button.ghost { background:transparent; border:1px dashed #334155; }
+button.ghost { background:transparent; border:1px dashed #353535; color: var(--fg); }
 .list { display:flex; flex-direction:column; gap:8px; max-height:40vh; overflow:auto; }
 
 .content { padding:16px; display:flex; flex-direction:column; gap:10px; }
-#messages { flex:1; min-height:50vh; background:#0b1220; border:1px solid var(--border); border-radius:14px; padding:12px; overflow:auto; }
-.bubble { margin:6px 0; }
-.bubble .meta { font-size:11px; color:var(--muted); }
-.bubble .text { font-size:15px; word-wrap: break-word; }
 
-.overlay { position:fixed; inset:0; background:rgba(0,0,0,.65); display:grid; place-items:center; }
+/* Messages container: flex column */
+#messages {
+  flex: 1; min-height: 50vh; background: #050505; border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px; overflow: auto; display: flex; flex-direction: column; gap: 10px;
+}
+
+/* Message row: avatar + bubble */
+.msgrow { display:flex; align-items:flex-end; gap:8px; }
+.msgrow.right { justify-content: flex-end; }
+.msgrow img.avatar { width:28px; height:28px; }
+
+/* Partner bubble (left) */
+.bubble {
+  max-width: 72%; align-self: flex-start; background: #121212; border: 1px solid #1f1f1f;
+  border-radius: 14px; padding: 10px 12px; word-wrap: break-word;
+}
+.bubble .meta { font-size:11px; color:var(--muted); margin-bottom: 4px; }
+.bubble .text { font-size:15px; color:#f1f5f9; }
+
+/* Your bubble (right) */
+.bubble.mine { align-self: flex-end; background: #0e2230; border: 1px solid #123446; }
+.bubble.mine .meta, .bubble.mine .text { text-align: right; }
+
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,.75); display:grid; place-items:center; z-index:30; }
 .modal { width:min(92vw, 420px); }
+
+@media (max-width: 700px) {
+  .menu { right: 16px; } /* keep menu on-screen on small widths */
+}

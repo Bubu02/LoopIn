@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
-  <title>Mini Chat (PWA)</title>
+  <title>LoopIn</title>
 
   <link rel="manifest" href="/manifest.webmanifest">
-  <meta name="theme-color" content="#0f172a"/>
+  <meta name="theme-color" content="#000000"/>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="apple-touch-icon" href="/icons/icon-192.png"/>
@@ -15,10 +15,26 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>💬 Mini Chat</h1>
+    <h1>LoopIn</h1>
     <div class="grow"></div>
+
+    <!-- Profile mini-card (clickable) -->
+    <div id="meBox" class="mebox" aria-haspopup="true" aria-expanded="false">
+      <img id="meAvatar" class="avatar sm" src="/icons/default-avatar.png" alt="me">
+      <div id="who" class="muted"></div>
+    </div>
+
+    <!-- Menu anchored to avatar -->
+    <div id="profileMenu" class="menu hidden" role="menu" aria-hidden="true">
+      <button id="menuView" role="menuitem">View image</button>
+      <button id="menuUpload" role="menuitem">Upload new</button>
+    </div>
+
+    <!-- Hidden file input for uploads -->
+    <input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp" class="hidden">
+
     <button id="btnInstall" class="ghost" hidden>Install App</button>
-    <div id="who" class="muted"></div>
+    <button id="btnLogout" class="ghost">Logout</button>
   </header>
 
   <main class="grid">
@@ -31,7 +47,11 @@
         </div>
 
         <div id="newOptions" class="mt hidden">
-          <div class="row">
+          <div class="col">
+            <label class="muted">Room name (optional)</label>
+            <input id="roomNameInput" placeholder="e.g., Project Alpha" maxlength="80">
+          </div>
+          <div class="row mt">
             <button id="btnCreate">Create chat</button>
             <button id="btnJoin" class="ghost">Join chat</button>
           </div>
@@ -58,21 +78,38 @@
     </aside>
 
     <section class="content">
-      <div class="card" id="chatHeader">
-        <div>
-          <div><strong>Room:</strong> <span id="roomCode">(none)</span></div>
-          <div class="muted" id="roomHint">Pick “Existing chat” or create/join a new one.</div>
+      <div id="chatArea" class="hidden">
+        <div class="card" id="chatHeader">
+          <div>
+            <div><strong>Room:</strong> <span id="roomCode">(none)</span></div>
+            <div class="muted"><span id="roomName">(unnamed)</span></div>
+          </div>
         </div>
+
+        <div id="messages" class="messages"></div>
+
+        <form id="sendForm" autocomplete="off" class="row">
+          <input id="msg" placeholder="Type a message…">
+          <button class="primary" type="submit">Send</button>
+        </form>
       </div>
 
-      <div id="messages" class="messages"></div>
-
-      <form id="sendForm" autocomplete="off" class="row">
-        <input id="msg" placeholder="Type a message…">
-        <button class="primary" type="submit">Send</button>
-      </form>
+      <div id="emptyHint" class="card">
+        <strong>Pick a chat to begin</strong>
+        <p class="muted">Use <em>Existing chat</em> or <em>New chat</em> to start.</p>
+      </div>
     </section>
   </main>
+
+  <!-- Avatar preview modal -->
+  <div id="avatarModal" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal card">
+      <img id="avatarPreview" class="avatar xl" src="/icons/default-avatar.png" alt="avatar preview" />
+      <div class="row mt" style="justify-content:flex-end">
+        <button id="closeAvatar" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
 
   <div id="overlay" class="overlay hidden">
     <div class="modal card">

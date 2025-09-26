@@ -1,9 +1,8 @@
-// Simple app-shell cache so UI loads offline.
-// Messaging still needs network.
 const CACHE = "chat-app-v1";
 const ASSETS = [
   "/", "/index.html", "/style.css", "/client.js",
-  "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"
+  "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png",
+  "/icons/default-avatar.png"
 ];
 
 self.addEventListener("install", (e) => {
@@ -19,7 +18,6 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   const { request } = e;
-  // Cache-first for static; network for others
   const isStatic = request.method === "GET" &&
     (request.destination === "document" ||
      request.destination === "script" ||
