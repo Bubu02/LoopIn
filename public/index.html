@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+  <title>Mini Chat (PWA)</title>
+
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0f172a"/>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png"/>
+
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>💬 Mini Chat</h1>
+    <div class="grow"></div>
+    <button id="btnInstall" class="ghost" hidden>Install App</button>
+    <div id="who" class="muted"></div>
+  </header>
+
+  <main class="grid">
+    <aside>
+      <section class="card">
+        <h3>Start</h3>
+        <div class="row">
+          <button id="btnExisting" class="primary">Existing chat</button>
+          <button id="btnNew">New chat</button>
+        </div>
+
+        <div id="newOptions" class="mt hidden">
+          <div class="row">
+            <button id="btnCreate">Create chat</button>
+            <button id="btnJoin" class="ghost">Join chat</button>
+          </div>
+
+          <div id="joinPanel" class="mt hidden">
+            <div class="row">
+              <input id="joinCode" placeholder="Enter 8-char code" maxlength="8">
+              <button id="confirmJoin">Join</button>
+            </div>
+            <p class="muted">Ask your partner for their code.</p>
+          </div>
+
+          <div id="createdPanel" class="mt hidden">
+            <p>Share this code:</p>
+            <div class="code" id="createdCode"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Your chats</h3>
+        <div id="rooms" class="list"></div>
+      </section>
+    </aside>
+
+    <section class="content">
+      <div class="card" id="chatHeader">
+        <div>
+          <div><strong>Room:</strong> <span id="roomCode">(none)</span></div>
+          <div class="muted" id="roomHint">Pick “Existing chat” or create/join a new one.</div>
+        </div>
+      </div>
+
+      <div id="messages" class="messages"></div>
+
+      <form id="sendForm" autocomplete="off" class="row">
+        <input id="msg" placeholder="Type a message…">
+        <button class="primary" type="submit">Send</button>
+      </form>
+    </section>
+  </main>
+
+  <div id="overlay" class="overlay hidden">
+    <div class="modal card">
+      <h3>Welcome — tell us who you are</h3>
+      <div class="col">
+        <input id="nameInput" placeholder="Your name">
+        <input id="emailInput" placeholder="Email ID" type="email">
+        <button id="saveIdentity" class="primary">Continue</button>
+      </div>
+      <p class="muted">Stored locally to label your messages & find your chats.</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+  <script src="/client.js" type="module"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(()=>{});
+    }
+  </script>
+</body>
+</html>
