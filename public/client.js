@@ -1,6 +1,5 @@
 // ---------- tiny helpers ----------
 const $  = (q) => document.querySelector(q);
-const $$ = (q) => Array.from(document.querySelectorAll(q));
 const warnMissing = [];
 const bind = (sel, evt, handler) => {
   const el = $(sel);
@@ -206,13 +205,61 @@ bind("#confirmJoin", "click", async () => {
 function showChat() { must("#chatArea")?.classList.remove("hidden"); must("#emptyHint")?.classList.add("hidden"); }
 function showEmpty() { must("#chatArea")?.classList.add("hidden"); must("#emptyHint")?.classList.remove("hidden"); }
 
+// ---------- room name: text + pen edit ----------
+const roomNameText = must("#roomNameText");
+const roomNameEdit = must("#roomNameEdit");
+const editRoomBtn  = must("#editRoomBtn");
+
+function showRoomName(name) {
+  state.roomName = name || "(unnamed)";
+  if (roomNameText) roomNameText.textContent = state.roomName;
+  if (roomNameEdit) roomNameEdit.value = state.roomName;
+}
+
+function startEditingRoom() {
+  if (!roomNameText || !roomNameEdit || !editRoomBtn) return;
+  roomNameText.classList.add("hidden");
+  editRoomBtn.classList.add("hidden");
+  roomNameEdit.classList.remove("hidden");
+  roomNameEdit.focus();
+}
+async function stopEditingRoom(save) {
+  if (!roomNameText || !roomNameEdit || !editRoomBtn) return;
+  roomNameText.classList.remove("hidden");
+  editRoomBtn.classList.remove("hidden");
+  roomNameEdit.classList.add("hidden");
+  if (save && state.code) {
+    const newName = roomNameEdit.value.trim();
+    const res = await fetch("/api/rename-room", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ code: state.code, roomName: newName })
+    });
+    if (res.ok) {
+      const j = await res.json().catch(()=>({}));
+      showRoomName(j.roomName || newName);
+    } else {
+      showRoomName(state.roomName); // revert
+    }
+  } else {
+    roomNameEdit.value = state.roomName;
+  }
+}
+bind("#editRoomBtn", "click", startEditingRoom);
+if (roomNameEdit) {
+  roomNameEdit.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); stopEditingRoom(true); }
+    if (e.key === "Escape") stopEditingRoom(false);
+  });
+  roomNameEdit.addEventListener("blur", () => stopEditingRoom(true));
+}
+
 // ---------- socket & UI ----------
 function setRoomUI(code, roomName) {
   state.code = code;
-  state.roomName = roomName || "";
-  const rn = must("#roomNameEdit"); if (rn) rn.value = state.roomName || "(unnamed)";
-  const rc = must("#roomCode");     if (rc) rc.textContent = code ? `Code: ${code}` : "";
-  const msgs = must("#messages");   if (msgs) msgs.innerHTML = "";
+  showRoomName(roomName || "");
+  const rc = must("#roomCode"); if (rc) rc.textContent = code ? code : "";
+  const msgs = must("#messages"); if (msgs) msgs.innerHTML = "";
   showChat();
 }
 
@@ -226,11 +273,8 @@ function connectSocket() {
 
   state.socket.on("history", (payload) => {
     const { roomName, messages, code } = payload || { roomName: "", messages: [], code: "" };
-    if (roomName) {
-      state.roomName = roomName;
-      const rn = must("#roomNameEdit"); if (rn) rn.value = state.roomName || "(unnamed)";
-    }
-    if (code) { const rc = must("#roomCode"); if (rc) rc.textContent = `Code: ${code}`; }
+    if (roomName) showRoomName(roomName);
+    if (code) { const rc = must("#roomCode"); if (rc) rc.textContent = code; }
     const msgs = must("#messages"); if (!msgs) return;
     msgs.innerHTML = "";
     for (const m of messages) addMessageRow(m, { initialLoad: true });
@@ -243,32 +287,10 @@ function connectSocket() {
     if (stick) scrollToBottom();
   });
 
-  state.socket.on("roomRenamed", ({ roomName }) => {
-    state.roomName = roomName || "";
-    const rn = must("#roomNameEdit"); if (rn) rn.value = state.roomName || "(unnamed)";
-  });
+  state.socket.on("roomRenamed", ({ roomName }) => showRoomName(roomName || ""));
 
   state.socket.on("system", (txt) => console.log(txt));
   state.socket.on("errorMsg", (msg) => alert(msg));
-}
-
-// rename
-bind("#roomNameSave", "click", saveRoomName);
-bind("#roomNameEdit", "keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveRoomName(); }});
-
-async function saveRoomName() {
-  const rn = must("#roomNameEdit");
-  const newName = rn?.value?.trim() || "";
-  if (!state.code) return;
-  const res = await fetch("/api/rename-room", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ code: state.code, roomName: newName })
-  });
-  if (!res.ok) { alert("Rename failed"); return; }
-  const j = await res.json().catch(()=>({}));
-  state.roomName = j.roomName || newName;
-  if (rn) rn.value = state.roomName || "(unnamed)";
 }
 
 // copy room code
@@ -347,7 +369,7 @@ showEmpty();
 // util
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c])); }
 
-// After everything binds, surface any missing elements once:
+// Surface missing elements (if any) once:
 if (warnMissing.length) {
   console.warn("Missing elements in index.html for client.js bindings:", [...new Set(warnMissing)]);
 }

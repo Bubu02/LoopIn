@@ -84,11 +84,16 @@
   <main class="content">
     <!-- Chat area -->
     <div id="chatArea" class="chat-shell hidden">
-      <!-- Editable room name + small room code with Copy -->
+      <!-- Room header -->
       <div class="card chat-header">
         <div class="roomname-wrap">
-          <input id="roomNameEdit" class="roomname-input" value="(unnamed)" maxlength="80" />
-          <button id="roomNameSave" class="ghost small" title="Save">Save</button>
+          <span id="roomNameText">(unnamed)</span>
+          <button id="editRoomBtn" class="iconbtn-naked" title="Edit room name" aria-label="Edit room name">
+            <svg viewBox="0 0 24 24" class="icon">
+              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/>
+            </svg>
+          </button>
+          <input id="roomNameEdit" class="roomname-input hidden" maxlength="80">
         </div>
         <div class="roomcode-wrap">
           <span id="roomCode" class="muted code small"></span>
@@ -96,14 +101,20 @@
         </div>
       </div>
 
-      <!-- Scrollable messages only -->
+      <!-- Messages -->
       <div id="messages" class="messages" aria-live="polite"></div>
 
-      <!-- Composer stuck at bottom -->
-      <form id="sendForm" autocomplete="off" class="row composer">
-        <input id="msg" placeholder="Type a message…">
-        <button class="primary" type="submit">Send</button>
-      </form>
+      <!-- Composer -->
+      <div class="composer-shell">
+        <form id="sendForm" autocomplete="off" class="composer">
+          <input id="msg" placeholder="Type a message…">
+          <button class="sendbtn" type="submit" aria-label="Send">
+            <svg viewBox="0 0 24 24" class="sendicon">
+              <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+            </svg>
+          </button>
+        </form>
+      </div>
     </div>
 
     <!-- Empty state -->
@@ -113,7 +124,7 @@
     </div>
   </main>
 
-  <!-- Avatar preview modal -->
+  <!-- Avatar modal -->
   <div id="avatarModal" class="overlay hidden" role="dialog" aria-modal="true">
     <div class="modal card">
       <img id="avatarPreview" class="avatar xl" src="/icons/default-avatar.png" alt="avatar preview" />
@@ -138,6 +149,10 @@
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/client.js" type="module"></script>
-  <script> if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(()=>{}); } </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(()=>{});
+    }
+  </script>
 </body>
 </html>
