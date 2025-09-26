@@ -79,11 +79,18 @@ button.small { padding:6px 10px; font-size:12px; }
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 12px;
-  overflow-y: auto;              /* the only scroller */
+  overflow-y: auto;              /* still scrollable */
   display: flex;
   flex-direction: column;
   gap: 10px;
   scroll-behavior: smooth;
+
+  /* Hide scrollbar but keep scrolling */
+  scrollbar-width: none;         /* Firefox */
+  -ms-overflow-style: none;      /* IE/Edge */
+}
+#messages::-webkit-scrollbar {    /* Chrome/Safari/Opera */
+  display: none;
 }
 
 /* Composer sticks to bottom of chat area */
