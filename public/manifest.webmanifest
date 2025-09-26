@@ -1,6 +1,6 @@
 {
   "name": "LoopIn",
-  "short_name": "Chat",
+  "short_name": "LoopIn",
   "description": "Two-person chat with room codes",
   "start_url": "/",
   "scope": "/",

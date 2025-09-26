@@ -19,14 +19,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Ensure uploads dir exists
+// Ensure uploads dir exists (served from /public/uploads)
 const uploadDir = path.join(__dirname, "public", "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
+// Multer storage for avatars
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname || "").toLowerCase() || ".png";
+    const ext = (path.extname(file.originalname || "") || ".png").toLowerCase();
     const name = crypto.randomBytes(16).toString("hex") + ext;
     cb(null, name);
   }
@@ -40,7 +41,7 @@ const upload = multer({
   }
 });
 
-// Health check for Render
+// Health check
 app.get("/health", (_req, res) => res.status(200).send("OK"));
 
 // ===== In-memory store =====
@@ -74,14 +75,14 @@ const attachUserToRoom = (email, code) => {
 app.post("/api/upload-avatar", upload.single("avatar"), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    const urlPath = `/uploads/${req.file.filename}`;
+    const urlPath = `/uploads/${req.file.filename}`; // publicly served
     res.json({ url: urlPath });
   } catch (e) {
     res.status(400).json({ error: e.message || "Upload failed" });
   }
 });
 
-// ===== REST =====
+// List my rooms (name only)
 app.get("/api/my-rooms", (req, res) => {
   const email = String(req.query.email || "").trim().toLowerCase();
   const codes = [...(userRooms.get(email) || [])];
@@ -99,6 +100,7 @@ app.get("/api/my-rooms", (req, res) => {
   res.json(result);
 });
 
+// Create / Join
 app.post("/api/create-room", (req, res) => {
   const { email, roomName } = req.body || {};
   const code = genCode(8);
@@ -121,6 +123,16 @@ app.post("/api/join-room", (req, res) => {
   res.json({ ok: true, roomName: room.name || "" });
 });
 
+// Rename room
+app.post("/api/rename-room", (req, res) => {
+  const { code, roomName } = req.body || {};
+  if (!code || !rooms.has(code)) return res.status(404).json({ error: "Room not found" });
+  const name = String(roomName || "").slice(0, 80);
+  rooms.get(code).name = name;
+  io.to(code).emit("roomRenamed", { roomName: name });
+  res.json({ ok: true, roomName: name });
+});
+
 // ===== Socket.IO =====
 io.on("connection", (socket) => {
   socket.on("join", ({ code, name, email, avatarUrl }) => {
@@ -128,7 +140,7 @@ io.on("connection", (socket) => {
     socket.join(code);
     socket.data.user = { code, name, email: (email||"").toLowerCase(), avatarUrl: avatarUrl || "" };
     const room = rooms.get(code);
-    socket.emit("history", { roomName: room.name || "", messages: room.messages });
+    socket.emit("history", { roomName: room.name || "", messages: room.messages, code });
     socket.to(code).emit("system", `${name || "Someone"} joined the chat.`);
   });
 

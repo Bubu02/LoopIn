@@ -16,89 +16,101 @@
 <body>
   <header class="topbar">
     <h1>LoopIn</h1>
+    <button id="btnChatMenu" class="ghost">Chats ▾</button>
     <div class="grow"></div>
 
-    <!-- Profile mini-card (clickable) -->
+    <!-- Profile (only avatar + name in header) -->
     <div id="meBox" class="mebox" aria-haspopup="true" aria-expanded="false">
       <img id="meAvatar" class="avatar sm" src="/icons/default-avatar.png" alt="me">
-      <div id="who" class="muted"></div>
+      <div id="whoName" class="muted"></div>
     </div>
 
-    <!-- Menu anchored to avatar -->
+    <!-- Profile menu -->
     <div id="profileMenu" class="menu hidden" role="menu" aria-hidden="true">
+      <div class="menutitle">Signed in as</div>
+      <div id="menuName" class="menuitem text"></div>
+      <div id="menuEmail" class="menuitem text muted"></div>
+      <div class="menusep"></div>
       <button id="menuView" role="menuitem">View image</button>
       <button id="menuUpload" role="menuitem">Upload new</button>
+      <div class="menusep"></div>
+      <button id="menuLogout" role="menuitem">Logout</button>
     </div>
-
-    <!-- Hidden file input for uploads -->
     <input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp" class="hidden">
 
     <button id="btnInstall" class="ghost" hidden>Install App</button>
-    <button id="btnLogout" class="ghost">Logout</button>
   </header>
 
-  <main class="grid">
-    <aside>
-      <section class="card">
-        <h3>Start</h3>
-        <div class="row">
-          <button id="btnExisting" class="primary">Existing chat</button>
-          <button id="btnNew">New chat</button>
-        </div>
-
-        <div id="newOptions" class="mt hidden">
-          <div class="col">
-            <label class="muted">Room name (optional)</label>
-            <input id="roomNameInput" placeholder="e.g., Project Alpha" maxlength="80">
-          </div>
-          <div class="row mt">
-            <button id="btnCreate">Create chat</button>
-            <button id="btnJoin" class="ghost">Join chat</button>
-          </div>
-
-          <div id="joinPanel" class="mt hidden">
-            <div class="row">
-              <input id="joinCode" placeholder="Enter 8-char code" maxlength="8">
-              <button id="confirmJoin">Join</button>
-            </div>
-            <p class="muted">Ask your partner for their code.</p>
-          </div>
-
-          <div id="createdPanel" class="mt hidden">
-            <p>Share this code:</p>
-            <div class="code" id="createdCode"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="card">
-        <h3>Your chats</h3>
-        <div id="rooms" class="list"></div>
-      </section>
-    </aside>
-
-    <section class="content">
-      <div id="chatArea" class="hidden">
-        <div class="card" id="chatHeader">
-          <div>
-            <div><strong>Room:</strong> <span id="roomCode">(none)</span></div>
-            <div class="muted"><span id="roomName">(unnamed)</span></div>
-          </div>
-        </div>
-
-        <div id="messages" class="messages"></div>
-
-        <form id="sendForm" autocomplete="off" class="row">
-          <input id="msg" placeholder="Type a message…">
-          <button class="primary" type="submit">Send</button>
-        </form>
+  <!-- Chats dropdown -->
+  <div id="chatMenu" class="dropdown hidden" aria-hidden="true">
+    <div class="card">
+      <h3>Start</h3>
+      <div class="row">
+        <button id="btnExisting" class="primary">Existing chat</button>
+        <button id="btnNew">New chat</button>
       </div>
 
-      <div id="emptyHint" class="card">
-        <strong>Pick a chat to begin</strong>
-        <p class="muted">Use <em>Existing chat</em> or <em>New chat</em> to start.</p>
+      <div id="newOptions" class="mt hidden">
+        <div class="col">
+          <label class="muted">Room name (optional)</label>
+          <input id="roomNameInput" placeholder="e.g., Satya Room" maxlength="80">
+        </div>
+        <div class="row mt">
+          <button id="btnCreate">Create chat</button>
+          <button id="btnJoin" class="ghost">Join chat</button>
+        </div>
+
+        <div id="joinPanel" class="mt hidden">
+          <div class="row">
+            <input id="joinCode" placeholder="Enter 8-char code" maxlength="8">
+            <button id="confirmJoin">Join</button>
+          </div>
+          <p class="muted">Ask your partner for their code.</p>
+        </div>
+
+        <div id="createdPanel" class="mt hidden">
+          <p>Share this code:</p>
+          <div class="code" id="createdCode"></div>
+        </div>
       </div>
-    </section>
+    </div>
+
+    <div class="card mt">
+      <h3>Your chats</h3>
+      <div id="rooms" class="list"></div>
+    </div>
+  </div>
+
+  <main class="content">
+    <!-- Chat area -->
+    <div id="chatArea" class="chat-shell hidden">
+      <!-- Editable room name + small room code with Copy -->
+      <div class="card chat-header">
+        <div class="roomname-wrap">
+          <input id="roomNameEdit" class="roomname-input" value="(unnamed)" maxlength="80" />
+          <button id="roomNameSave" class="ghost small" title="Save">Save</button>
+        </div>
+        <div class="roomcode-wrap">
+          <span id="roomCode" class="muted code small"></span>
+          <button id="copyCode" class="ghost small" title="Copy room code">Copy</button>
+        </div>
+      </div>
+
+      <!-- Scrollable messages only -->
+      <div id="messages" class="messages" aria-live="polite"></div>
+
+      <!-- Composer stuck at bottom -->
+      <form id="sendForm" autocomplete="off" class="row composer">
+        <input id="msg" placeholder="Type a message…">
+        <button class="primary" type="submit">Send</button>
+      </form>
+    </div>
+
+    <!-- Empty state -->
+    <div id="emptyHint" class="card">
+      <strong>Pick a chat to begin</strong>
+      <p class="muted">Use <em>Chats ▾</em> to create or open a conversation.</p>
+    </div>
   </main>
 
   <!-- Avatar preview modal -->
@@ -111,6 +123,7 @@
     </div>
   </div>
 
+  <!-- First-time identity -->
   <div id="overlay" class="overlay hidden">
     <div class="modal card">
       <h3>Welcome — tell us who you are</h3>
@@ -125,10 +138,6 @@
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/client.js" type="module"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(()=>{});
-    }
-  </script>
+  <script> if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(()=>{}); } </script>
 </body>
 </html>

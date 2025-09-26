@@ -1,4 +1,20 @@
-const $ = (q) => document.querySelector(q);
+// ---------- tiny helpers ----------
+const $  = (q) => document.querySelector(q);
+const $$ = (q) => Array.from(document.querySelectorAll(q));
+const warnMissing = [];
+const bind = (sel, evt, handler) => {
+  const el = $(sel);
+  if (!el) { warnMissing.push(sel); return; }
+  el.addEventListener(evt, handler);
+  return el;
+};
+const must = (sel) => {
+  const el = $(sel);
+  if (!el) warnMissing.push(sel);
+  return el;
+};
+
+// ---------- app state ----------
 const state = {
   code: null,
   roomName: "",
@@ -7,30 +23,40 @@ const state = {
   deferredPrompt: null
 };
 
-function lsGet(k){ try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }
-function lsSet(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
-function lsDel(k){ localStorage.removeItem(k); }
+// ---------- localStorage ----------
+const lsGet = (k)=>{ try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+const lsSet = (k,v)=> localStorage.setItem(k, JSON.stringify(v));
+const lsDel = (k)=> localStorage.removeItem(k);
 
+// ---------- identity ----------
 function setHeaderIdentity() {
-  $("#who").textContent = state.me.name && state.me.email ? `${state.me.name} • ${state.me.email}` : "";
-  $("#meAvatar").src = state.me.avatarUrl || "/icons/default-avatar.png";
-  $("#avatarPreview").src = state.me.avatarUrl || "/icons/default-avatar.png";
+  const whoName      = must("#whoName");
+  const meAvatar     = must("#meAvatar");
+  const avatarPrev   = must("#avatarPreview");
+  const menuName     = must("#menuName");
+  const menuEmail    = must("#menuEmail");
+
+  if (whoName)  whoName.textContent  = state.me.name || "";
+  if (meAvatar) meAvatar.src         = state.me.avatarUrl || "/icons/default-avatar.png";
+  if (avatarPrev) avatarPrev.src     = state.me.avatarUrl || "/icons/default-avatar.png";
+  if (menuName) menuName.textContent = state.me.name || "";
+  if (menuEmail) menuEmail.textContent = state.me.email || "";
 }
 
 function initIdentity() {
   const saved = lsGet("identity") || {};
   if (!saved.name || !saved.email) {
-    $("#overlay").classList.remove("hidden");
-    $("#saveIdentity").onclick = () => {
-      const name = $("#nameInput").value.trim();
-      const email = $("#emailInput").value.trim().toLowerCase();
-      if (!name || !email) return alert("Please fill both fields.");
+    must("#overlay")?.classList.remove("hidden");
+    bind("#saveIdentity", "click", () => {
+      const name  = must("#nameInput")?.value?.trim();
+      const email = must("#emailInput")?.value?.trim()?.toLowerCase();
+      if (!name || !email) { alert("Please fill both fields."); return; }
       state.me = { name, email, avatarUrl: "" };
       lsSet("identity", state.me);
-      $("#overlay").classList.add("hidden");
+      must("#overlay")?.classList.add("hidden");
       setHeaderIdentity();
       refreshRooms();
-    };
+    });
   } else {
     state.me = { name: saved.name, email: saved.email, avatarUrl: saved.avatarUrl || "" };
     setHeaderIdentity();
@@ -38,46 +64,43 @@ function initIdentity() {
   }
 }
 
-/* Avatar menu logic */
-const menu = $("#profileMenu");
-$("#meBox").addEventListener("click", (e) => {
-  const expanded = menu.classList.toggle("hidden");
-  $("#meBox").setAttribute("aria-expanded", (!expanded).toString());
-  positionMenu();
-  e.stopPropagation();
+// ---------- profile menu ----------
+const profileMenu = must("#profileMenu");
+bind("#meBox", "pointerdown", (e) => {
+  e.preventDefault();
+  profileMenu?.classList.toggle("hidden");
+  must("#chatMenu")?.classList.add("hidden");
 });
-function positionMenu() {
-  // keep simple; CSS handles small screens
-}
-document.addEventListener("click", (e) => {
-  if (!menu.classList.contains("hidden") && !menu.contains(e.target) && e.target !== $("#meBox") && !$("#meBox").contains(e.target)) {
-    menu.classList.add("hidden");
-    $("#meBox").setAttribute("aria-expanded", "false");
+
+document.addEventListener("pointerdown", (e) => {
+  if (!profileMenu || profileMenu.classList.contains("hidden")) return;
+  if (!profileMenu.contains(e.target) && !must("#meBox")?.contains(e.target)) {
+    profileMenu.classList.add("hidden");
   }
 });
 
-$("#menuView").addEventListener("click", () => {
-  $("#avatarPreview").src = state.me.avatarUrl || "/icons/default-avatar.png";
-  $("#avatarModal").classList.remove("hidden");
-  menu.classList.add("hidden");
+bind("#menuView", "click", () => {
+  const prev = must("#avatarPreview");
+  if (prev) prev.src = state.me.avatarUrl || "/icons/default-avatar.png";
+  must("#avatarModal")?.classList.remove("hidden");
+  profileMenu?.classList.add("hidden");
 });
-$("#closeAvatar").addEventListener("click", () => {
-  $("#avatarModal").classList.add("hidden");
-});
+bind("#closeAvatar", "click", () => must("#avatarModal")?.classList.add("hidden"));
 
-$("#menuUpload").addEventListener("click", () => {
-  $("#avatarFile").click();
-  menu.classList.add("hidden");
+bind("#menuUpload", "click", () => {
+  must("#avatarFile")?.click();
+  profileMenu?.classList.add("hidden");
 });
-$("#avatarFile").addEventListener("change", async () => {
-  const file = $("#avatarFile").files && $("#avatarFile").files[0];
+bind("#avatarFile", "change", async () => {
+  const input = must("#avatarFile");
+  const file = input?.files && input.files[0];
   if (!file) return;
   if (file.size > 2 * 1024 * 1024) { alert("File too large (max 2 MB)"); return; }
   const fd = new FormData();
   fd.append("avatar", file);
   const res = await fetch("/api/upload-avatar", { method: "POST", body: fd });
   const j = await res.json().catch(()=>({ error: "Upload failed" }));
-  if (!res.ok) return alert(j.error || "Upload failed");
+  if (!res.ok) { alert(j.error || "Upload failed"); return; }
   state.me.avatarUrl = j.url;
   lsSet("identity", state.me);
   setHeaderIdentity();
@@ -86,52 +109,63 @@ $("#avatarFile").addEventListener("change", async () => {
   }
 });
 
-/* Logout */
-$("#btnLogout").onclick = () => {
-  if (state.socket) { try { state.socket.disconnect(); } catch(e){} }
+bind("#menuLogout", "click", () => {
+  try { state.socket?.disconnect(); } catch {}
   lsDel("identity");
   state.me = { name: null, email: null, avatarUrl: "" };
-  state.code = null;
-  state.roomName = "";
-  $("#rooms").innerHTML = "";
+  state.code = null; state.roomName = "";
+  const rooms = must("#rooms"); if (rooms) rooms.innerHTML = "";
   showEmpty();
-  $("#overlay").classList.remove("hidden");
+  must("#overlay")?.classList.remove("hidden");
   setHeaderIdentity();
-};
+  profileMenu?.classList.add("hidden");
+});
 
-/* REST helpers */
+// ---------- chats dropdown ----------
+const chatMenu = must("#chatMenu");
+bind("#btnChatMenu", "pointerdown", (e) => {
+  e.preventDefault();
+  chatMenu?.classList.toggle("hidden");
+  profileMenu?.classList.add("hidden");
+});
+document.addEventListener("pointerdown", (e) => {
+  if (!chatMenu || chatMenu.classList.contains("hidden")) return;
+  if (!chatMenu.contains(e.target) && e.target !== must("#btnChatMenu")) {
+    chatMenu.classList.add("hidden");
+  }
+});
+
+// ---------- REST: my rooms ----------
 async function refreshRooms() {
   const email = encodeURIComponent(state.me.email || "");
   if (!email) return;
   const res = await fetch(`/api/my-rooms?email=${email}`);
   const data = await res.json();
-  const list = $("#rooms");
+  const list = must("#rooms");
+  if (!list) return;
   list.innerHTML = "";
-  if (!data.length) {
-    list.innerHTML = `<div class="muted">No chats yet.</div>`;
-    return;
-  }
+  if (!data.length) { list.innerHTML = `<div class="muted">No chats yet.</div>`; return; }
   for (const r of data) {
     const div = document.createElement("div");
     div.className = "card";
     const time = new Date(r.lastMessageAt).toLocaleString();
-    const title = r.roomName ? `${r.roomName} (${r.code})` : r.code;
-    div.innerHTML = `<strong>${title}</strong><div class="muted">Last: ${time}</div>`;
+    const title = r.roomName || "(unnamed)";
+    div.innerHTML = `<strong>${escapeHtml(title)}</strong><div class="muted">Last: ${time}</div>`;
     div.style.cursor = "pointer";
-    div.onclick = () => joinRoom(r.code, r.roomName || "");
+    div.onclick = () => { chatMenu?.classList.add("hidden"); joinRoom(r.code, r.roomName || ""); };
     list.appendChild(div);
   }
 }
 
-/* UI wiring */
-$("#btnExisting").onclick = refreshRooms;
-$("#btnNew").onclick = () => {
-  $("#newOptions").classList.remove("hidden");
-  $("#joinPanel").classList.add("hidden");
-  $("#createdPanel").classList.add("hidden");
-};
-$("#btnCreate").onclick = async () => {
-  const roomName = ($("#roomNameInput").value || "").trim();
+// ---------- create/join ----------
+bind("#btnExisting", "click", refreshRooms);
+bind("#btnNew", "click", () => {
+  must("#newOptions")?.classList.remove("hidden");
+  must("#joinPanel")?.classList.add("hidden");
+  must("#createdPanel")?.classList.add("hidden");
+});
+bind("#btnCreate", "click", async () => {
+  const roomName = must("#roomNameInput")?.value?.trim() || "";
   const res = await fetch("/api/create-room", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
@@ -140,59 +174,48 @@ $("#btnCreate").onclick = async () => {
   const data = await res.json();
   const code = data.code;
   const rn = data.roomName || roomName || "";
-  $("#createdPanel").classList.remove("hidden");
-  $("#joinPanel").classList.add("hidden");
-  $("#createdCode").textContent = code;
+  must("#createdPanel")?.classList.remove("hidden");
+  must("#joinPanel")?.classList.add("hidden");
+  const codeBox = must("#createdCode"); if (codeBox) codeBox.textContent = code;
+  chatMenu?.classList.add("hidden");
   await joinRoom(code, rn);
   refreshRooms();
-};
-$("#btnJoin").onclick = () => {
-  $("#joinPanel").classList.remove("hidden");
-  $("#createdPanel").classList.add("hidden");
-  $("#joinCode").focus();
-};
-$("#confirmJoin").onclick = async () => {
-  const code = ($("#joinCode").value || "").trim();
-  if (code.length !== 8) return alert("Code must be 8 characters.");
+});
+bind("#btnJoin", "click", () => {
+  must("#joinPanel")?.classList.remove("hidden");
+  must("#createdPanel")?.classList.add("hidden");
+  must("#joinCode")?.focus();
+});
+bind("#confirmJoin", "click", async () => {
+  const codeEl = must("#joinCode");
+  const code = codeEl?.value?.trim();
+  if (!code || code.length !== 8) { alert("Code must be 8 characters."); return; }
   const res = await fetch("/api/join-room", {
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body: JSON.stringify({ code, ...state.me })
   });
   const j = await res.json().catch(()=>({error:"Join failed"}));
-  if (!res.ok) return alert(j.error || "Join failed");
+  if (!res.ok) { alert(j.error || "Join failed"); return; }
+  chatMenu?.classList.add("hidden");
   await joinRoom(code, j.roomName || "");
   refreshRooms();
-};
-
-$("#sendForm").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const text = $("#msg").value.trim();
-  if (!state.code) return alert("Join or create a room first.");
-  if (!text) return;
-  state.socket.emit("message", { text });
-  $("#msg").value = "";
 });
 
-/* Chat area visibility */
-function showChat() {
-  $("#chatArea").classList.remove("hidden");
-  $("#emptyHint").classList.add("hidden");
-}
-function showEmpty() {
-  $("#chatArea").classList.add("hidden");
-  $("#emptyHint").classList.remove("hidden");
-}
+// ---------- chat area visibility ----------
+function showChat() { must("#chatArea")?.classList.remove("hidden"); must("#emptyHint")?.classList.add("hidden"); }
+function showEmpty() { must("#chatArea")?.classList.add("hidden"); must("#emptyHint")?.classList.remove("hidden"); }
 
-/* Socket */
+// ---------- socket & UI ----------
 function setRoomUI(code, roomName) {
   state.code = code;
   state.roomName = roomName || "";
-  $("#roomCode").textContent = code || "(none)";
-  $("#roomName").textContent = state.roomName || "(unnamed)";
-  $("#messages").innerHTML = "";
+  const rn = must("#roomNameEdit"); if (rn) rn.value = state.roomName || "(unnamed)";
+  const rc = must("#roomCode");     if (rc) rc.textContent = code ? `Code: ${code}` : "";
+  const msgs = must("#messages");   if (msgs) msgs.innerHTML = "";
   showChat();
 }
+
 function connectSocket() {
   if (state.socket) state.socket.disconnect();
   state.socket = io();
@@ -200,22 +223,65 @@ function connectSocket() {
   state.socket.on("connect", () => {
     if (state.code) state.socket.emit("join", { code: state.code, ...state.me });
   });
+
   state.socket.on("history", (payload) => {
-    const { roomName, messages } = payload || { roomName: "", messages: [] };
-    if (roomName && !state.roomName) {
+    const { roomName, messages, code } = payload || { roomName: "", messages: [], code: "" };
+    if (roomName) {
       state.roomName = roomName;
-      $("#roomName").textContent = roomName;
+      const rn = must("#roomNameEdit"); if (rn) rn.value = state.roomName || "(unnamed)";
     }
-    $("#messages").innerHTML = "";
-    for (const m of messages) addMessageRow(m);
+    if (code) { const rc = must("#roomCode"); if (rc) rc.textContent = `Code: ${code}`; }
+    const msgs = must("#messages"); if (!msgs) return;
+    msgs.innerHTML = "";
+    for (const m of messages) addMessageRow(m, { initialLoad: true });
+    scrollToBottom(true);
   });
-  state.socket.on("message", (m) => addMessageRow(m));
-  state.socket.on("system", (txt) => toast(txt));
+
+  state.socket.on("message", (m) => {
+    const stick = isNearBottom();
+    addMessageRow(m);
+    if (stick) scrollToBottom();
+  });
+
+  state.socket.on("roomRenamed", ({ roomName }) => {
+    state.roomName = roomName || "";
+    const rn = must("#roomNameEdit"); if (rn) rn.value = state.roomName || "(unnamed)";
+  });
+
+  state.socket.on("system", (txt) => console.log(txt));
   state.socket.on("errorMsg", (msg) => alert(msg));
 }
 
-/* Render a message row (avatar + bubble) */
-function addMessageRow(m) {
+// rename
+bind("#roomNameSave", "click", saveRoomName);
+bind("#roomNameEdit", "keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveRoomName(); }});
+
+async function saveRoomName() {
+  const rn = must("#roomNameEdit");
+  const newName = rn?.value?.trim() || "";
+  if (!state.code) return;
+  const res = await fetch("/api/rename-room", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ code: state.code, roomName: newName })
+  });
+  if (!res.ok) { alert("Rename failed"); return; }
+  const j = await res.json().catch(()=>({}));
+  state.roomName = j.roomName || newName;
+  if (rn) rn.value = state.roomName || "(unnamed)";
+}
+
+// copy room code
+bind("#copyCode", "click", async () => {
+  if (!state.code) return;
+  try { await navigator.clipboard.writeText(state.code); alert("Room code copied"); }
+  catch { alert("Could not copy"); }
+});
+
+// render + scrolling
+function addMessageRow(m, { initialLoad=false } = {}) {
+  const msgs = must("#messages"); if (!msgs) return;
+
   const mine = (m.email || "").toLowerCase() === (state.me.email || "").toLowerCase();
   const row = document.createElement("div");
   row.className = "msgrow" + (mine ? " right" : "");
@@ -229,46 +295,36 @@ function addMessageRow(m) {
   bubble.className = "bubble" + (mine ? " mine" : "");
   const who = mine ? "You" : (m.name || "Anonymous");
   const when = new Date(m.ts || Date.now()).toLocaleTimeString();
-  bubble.innerHTML = `
-    <div class="meta">${who} • ${when}</div>
-    <div class="text">${escapeHtml(m.text || "")}</div>
-  `;
+  bubble.innerHTML = `<div class="meta">${escapeHtml(who)} • ${when}</div><div class="text">${escapeHtml(m.text || "")}</div>`;
 
-  if (mine) {
-    row.appendChild(bubble);
-    row.appendChild(avatar);
-  } else {
-    row.appendChild(avatar);
-    row.appendChild(bubble);
-  }
+  if (mine) { row.appendChild(bubble); row.appendChild(avatar); } else { row.appendChild(avatar); row.appendChild(bubble); }
+  msgs.appendChild(row);
 
-  $("#messages").appendChild(row);
-  $("#messages").scrollTop = $("#messages").scrollHeight;
+  if (!initialLoad && isNearBottom()) scrollToBottom();
+}
+function isNearBottom() {
+  const el = must("#messages"); if (!el) return true;
+  return el.scrollTop + el.clientHeight >= el.scrollHeight - 80;
+}
+function scrollToBottom(immediate=false) {
+  const el = must("#messages"); if (!el) return;
+  if (immediate) el.scrollTop = el.scrollHeight;
+  else el.scrollTo({ top: el.scrollHeight });
 }
 
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, c => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-  }[c]));
-}
-function toast(t){ console.log(t); }
-
-/* PWA install button */
-window.addEventListener('beforeinstallprompt', (e) => {
+// send
+bind("#sendForm", "submit", (e) => {
   e.preventDefault();
-  state.deferredPrompt = e;
-  $("#btnInstall").hidden = false;
+  const input = must("#msg");
+  const text = input?.value?.trim();
+  if (!state.code) { alert("Join or create a room first (use Chats ▾)."); return; }
+  if (!text) return;
+  state.socket.emit("message", { text });
+  if (input) input.value = "";
+  scrollToBottom();
 });
-$("#btnInstall").addEventListener('click', async () => {
-  $("#btnInstall").hidden = true;
-  if (!state.deferredPrompt) return;
-  state.deferredPrompt.prompt();
-  await state.deferredPrompt.userChoice;
-  state.deferredPrompt = null;
-});
-window.addEventListener('appinstalled', () => toast('App installed!'));
 
-/* Helper */
+// join helper
 async function joinRoom(code, roomName = "") {
   setRoomUI(code, roomName);
   if (!state.socket) connectSocket();
@@ -283,7 +339,15 @@ async function joinRoom(code, roomName = "") {
   }
 }
 
-/* Start */
+// start
 initIdentity();
 connectSocket();
 showEmpty();
+
+// util
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c])); }
+
+// After everything binds, surface any missing elements once:
+if (warnMissing.length) {
+  console.warn("Missing elements in index.html for client.js bindings:", [...new Set(warnMissing)]);
+}
