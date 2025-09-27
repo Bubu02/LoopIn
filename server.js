@@ -17,23 +17,34 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// ===== In-memory store =====
-const rooms = new Map(); // code -> {code,name,createdAt,messages[],participants:Set<string>}
-const userRooms = new Map(); // email(lower) -> Set<code>
+/* ================= In-memory store ================= */
+const rooms = new Map();
+/*
+  rooms.set(code, {
+    code,
+    name,
+    owner: "owner@email",
+    createdAt: ts,
+    messages: [{ name, email, text, ts, avatarUrl }],
+    participants: Set<email>
+  });
+*/
+const userRooms = new Map(); // email -> Set<code>
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 const genCode = (n = 8) =>
   Array.from(crypto.randomFillSync(new Uint32Array(n)))
     .map(x => ALPHABET[x % ALPHABET.length]).join("");
 
-const ensureRoom = (code, roomName = "") => {
+const ensureRoom = (code, { roomName = "", owner } = {}) => {
   if (!rooms.has(code)) {
     rooms.set(code, {
       code,
-      name: (roomName || "").toString().slice(0, 80),
+      name: String(roomName || "").slice(0, 80),
+      owner: (owner || "").toLowerCase(),
       createdAt: Date.now(),
       messages: [],
-      participants: new Set()
+      participants: new Set(owner ? [owner.toLowerCase()] : [])
     });
   }
   return rooms.get(code);
@@ -55,10 +66,11 @@ const detachUserFromRoom = (email, code) => {
   }
 };
 
-// Health check
+/* ================= REST ================= */
+
 app.get("/health", (_req, res) => res.status(200).send("OK"));
 
-// List my rooms
+/* List my rooms */
 app.get("/api/my-rooms", (req, res) => {
   const email = String(req.query.email || "").trim().toLowerCase();
   const codes = [...(userRooms.get(email) || [])];
@@ -70,37 +82,38 @@ app.get("/api/my-rooms", (req, res) => {
       roomName: r.name || "",
       createdAt: r.createdAt,
       lastMessageAt: r.messages.at(-1)?.ts ?? r.createdAt,
-      participants: [...r.participants]
+      isOwner: r.owner === email
     }))
     .sort((a,b) => b.lastMessageAt - a.lastMessageAt);
   res.json(result);
 });
 
-// Create room
+/* Create room (owner = creator) */
 app.post("/api/create-room", (req, res) => {
   const { email, roomName } = req.body || {};
+  const owner = (email || "").toLowerCase();
   const code = genCode(8);
-  const room = ensureRoom(code, roomName);
-  if (email) {
-    room.participants.add(email.toLowerCase());
-    attachUserToRoom(email.toLowerCase(), code);
+  const room = ensureRoom(code, { roomName, owner });
+  if (owner) {
+    attachUserToRoom(owner, code);
   }
   res.json({ code, roomName: room.name || "" });
 });
 
-// Join room (multi-user allowed)
+/* Join room (multi-user) */
 app.post("/api/join-room", (req, res) => {
   const { code, email } = req.body || {};
   if (!code || !rooms.has(code)) return res.status(404).json({ error: "Room not found" });
   const room = rooms.get(code);
-  if (email) {
-    room.participants.add(email.toLowerCase());
-    attachUserToRoom(email.toLowerCase(), code);
+  const e = (email || "").toLowerCase();
+  if (e) {
+    room.participants.add(e);
+    attachUserToRoom(e, code);
   }
   res.json({ ok: true, roomName: room.name || "" });
 });
 
-// Rename room
+/* Rename (owner only) */
 app.post("/api/rename-room", (req, res) => {
   const { code, roomName } = req.body || {};
   if (!code || !rooms.has(code)) return res.status(404).json({ error: "Room not found" });
@@ -110,8 +123,7 @@ app.post("/api/rename-room", (req, res) => {
   res.json({ ok: true, roomName: name });
 });
 
-// Leave / delete from my list
-// If the room becomes empty, it is removed entirely.
+/* Leave room (remove from *my* list only) */
 app.post("/api/leave-room", (req, res) => {
   const { code, email } = req.body || {};
   const e = (email || "").toLowerCase().trim();
@@ -122,21 +134,43 @@ app.post("/api/leave-room", (req, res) => {
   room.participants.delete(e);
   detachUserFromRoom(e, code);
 
-  // If no participants left, delete room permanently
+  // If no participants left, delete permanently
   if (room.participants.size === 0) {
     rooms.delete(code);
     io.to(code).emit("roomDeleted", { code });
   }
-
   res.json({ ok: true });
 });
 
-// ===== Socket.IO =====
+/* Delete room (owner only) */
+app.post("/api/delete-room", (req, res) => {
+  const { code, email } = req.body || {};
+  const e = (email || "").toLowerCase().trim();
+  if (!code || !rooms.has(code)) return res.status(404).json({ error: "Room not found" });
+  const room = rooms.get(code);
+  if (room.owner !== e) return res.status(403).json({ error: "Only the creator can delete this room." });
+
+  // Remove room and unlink from all user lists
+  rooms.delete(code);
+  for (const [ue, set] of userRooms.entries()) {
+    set.delete(code);
+    if (set.size === 0) userRooms.delete(ue);
+  }
+  io.to(code).emit("roomDeleted", { code });
+  res.json({ ok: true });
+});
+
+/* ================= Socket.IO ================= */
 io.on("connection", (socket) => {
   socket.on("join", ({ code, name, email, avatarUrl }) => {
     if (!code || !rooms.has(code)) { socket.emit("errorMsg", "Room not found."); return; }
     socket.join(code);
-    socket.data.user = { code, name, email: (email||"").toLowerCase(), avatarUrl: avatarUrl || "" };
+    socket.data.user = {
+      code,
+      name,
+      email: (email || "").toLowerCase(),
+      avatarUrl: avatarUrl || ""
+    };
     const room = rooms.get(code);
     socket.emit("history", { roomName: room.name || "", messages: room.messages, code });
     socket.to(code).emit("system", `${name || "Someone"} joined the chat.`);

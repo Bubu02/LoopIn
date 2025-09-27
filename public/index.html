@@ -19,13 +19,12 @@
     <button id="btnChatMenu" class="ghost">Chats ▾</button>
     <div class="grow"></div>
 
-    <!-- Profile (only avatar + name in header) -->
     <div id="meBox" class="mebox" aria-haspopup="true" aria-expanded="false">
-      <img id="meAvatar" class="avatar sm" src="/icons/default-avatar.png" alt="me">
+      <!-- default avatar now PNG -->
+      <img id="meAvatar" class="avatar sm" src="/avatars/1.png" alt="me">
       <div id="whoName" class="muted"></div>
     </div>
 
-    <!-- Profile menu -->
     <div id="profileMenu" class="menu hidden" role="menu" aria-hidden="true">
       <div class="menutitle">Signed in as</div>
       <div id="menuName" class="menuitem text"></div>
@@ -74,7 +73,7 @@
             <input id="joinCode" placeholder="Enter 8-char code" maxlength="8">
             <button id="confirmJoin">Join</button>
           </div>
-          <p class="muted">Share code to add multiple people to a room.</p>
+          <p class="muted">Share the code to add multiple people to a room.</p>
         </div>
 
         <div id="createdPanel" class="mt hidden">
@@ -91,9 +90,7 @@
   </div>
 
   <main class="content">
-    <!-- Chat area -->
     <div id="chatArea" class="chat-shell hidden">
-      <!-- Room header -->
       <div class="card chat-header">
         <div class="roomname-wrap">
           <span id="roomNameText">(unnamed)</span>
@@ -110,10 +107,8 @@
         </div>
       </div>
 
-      <!-- Messages -->
       <div id="messages" class="messages" aria-live="polite"></div>
 
-      <!-- Composer -->
       <div class="composer-shell">
         <form id="sendForm" autocomplete="off" class="composer">
           <input id="msg" placeholder="Type a message…">
@@ -126,7 +121,6 @@
       </div>
     </div>
 
-    <!-- Empty state -->
     <div id="emptyHint" class="card">
       <strong>Pick a chat to begin</strong>
       <p class="muted">Use <em>Chats ▾</em> to create or open a conversation.</p>
