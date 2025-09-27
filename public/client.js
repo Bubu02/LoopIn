@@ -13,12 +13,32 @@ const must = (sel) => {
   return el;
 };
 
+// ---------- built-in avatar set (7 SVG data URIs; no files needed) ----------
+const AVATARS = [
+  "#22d3ee","#f43f5e","#a78bfa","#34d399","#f59e0b","#60a5fa","#eab308"
+].map(color => {
+  const svg = encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'>
+      <defs>
+        <linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
+          <stop offset='0%' stop-color='${color}' stop-opacity='1'/>
+          <stop offset='100%' stop-color='#0b0b0b' stop-opacity='1'/>
+        </linearGradient>
+      </defs>
+      <rect width='128' height='128' rx='64' fill='url(#g)'/>
+      <circle cx='64' cy='50' r='26' fill='rgba(255,255,255,.15)'/>
+      <rect x='26' y='80' width='76' height='34' rx='17' fill='rgba(255,255,255,.12)'/>
+    </svg>`
+  );
+  return `data:image/svg+xml;charset=utf-8,${svg}`;
+});
+
 // ---------- app state ----------
 const state = {
   code: null,
   roomName: "",
   socket: null,
-  me: { name: null, email: null, avatarUrl: "" },
+  me: { name: null, email: null, avatarUrl: AVATARS[0] },
   deferredPrompt: null
 };
 
@@ -31,13 +51,11 @@ const lsDel = (k)=> localStorage.removeItem(k);
 function setHeaderIdentity() {
   const whoName      = must("#whoName");
   const meAvatar     = must("#meAvatar");
-  const avatarPrev   = must("#avatarPreview");
   const menuName     = must("#menuName");
   const menuEmail    = must("#menuEmail");
 
   if (whoName)  whoName.textContent  = state.me.name || "";
-  if (meAvatar) meAvatar.src         = state.me.avatarUrl || "/icons/default-avatar.png";
-  if (avatarPrev) avatarPrev.src     = state.me.avatarUrl || "/icons/default-avatar.png";
+  if (meAvatar) meAvatar.src         = state.me.avatarUrl || AVATARS[0];
   if (menuName) menuName.textContent = state.me.name || "";
   if (menuEmail) menuEmail.textContent = state.me.email || "";
 }
@@ -50,18 +68,52 @@ function initIdentity() {
       const name  = must("#nameInput")?.value?.trim();
       const email = must("#emailInput")?.value?.trim()?.toLowerCase();
       if (!name || !email) { alert("Please fill both fields."); return; }
-      state.me = { name, email, avatarUrl: "" };
+      state.me = { name, email, avatarUrl: AVATARS[0] };
       lsSet("identity", state.me);
       must("#overlay")?.classList.add("hidden");
       setHeaderIdentity();
       refreshRooms();
     });
   } else {
-    state.me = { name: saved.name, email: saved.email, avatarUrl: saved.avatarUrl || "" };
+    state.me = {
+      name: saved.name,
+      email: saved.email,
+      avatarUrl: saved.avatarUrl || AVATARS[0]
+    };
     setHeaderIdentity();
     refreshRooms();
   }
 }
+
+// ---------- avatar picker ----------
+function openAvatarPicker() {
+  const grid = must("#avatarGrid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  AVATARS.forEach((src, idx) => {
+    const item = document.createElement("button");
+    item.className = "avatar-option";
+    item.innerHTML = `<img alt="avatar ${idx+1}" src="${src}">`;
+    item.onclick = () => {
+      state.me.avatarUrl = src;
+      lsSet("identity", state.me);
+      setHeaderIdentity();
+      must("#avatarPicker")?.classList.add("hidden");
+      // refresh socket identity so future messages include new avatar
+      if (state.socket?.connected && state.code) {
+        state.socket.emit("join", { code: state.code, ...state.me });
+      }
+    };
+    grid.appendChild(item);
+  });
+  must("#avatarPicker")?.classList.remove("hidden");
+}
+
+bind("#menuChooseAvatar", "click", () => {
+  openAvatarPicker();
+  must("#profileMenu")?.classList.add("hidden");
+});
+bind("#closePicker", "click", () => must("#avatarPicker")?.classList.add("hidden"));
 
 // ---------- profile menu ----------
 const profileMenu = must("#profileMenu");
@@ -70,48 +122,16 @@ bind("#meBox", "pointerdown", (e) => {
   profileMenu?.classList.toggle("hidden");
   must("#chatMenu")?.classList.add("hidden");
 });
-
 document.addEventListener("pointerdown", (e) => {
   if (!profileMenu || profileMenu.classList.contains("hidden")) return;
   if (!profileMenu.contains(e.target) && !must("#meBox")?.contains(e.target)) {
     profileMenu.classList.add("hidden");
   }
 });
-
-bind("#menuView", "click", () => {
-  const prev = must("#avatarPreview");
-  if (prev) prev.src = state.me.avatarUrl || "/icons/default-avatar.png";
-  must("#avatarModal")?.classList.remove("hidden");
-  profileMenu?.classList.add("hidden");
-});
-bind("#closeAvatar", "click", () => must("#avatarModal")?.classList.add("hidden"));
-
-bind("#menuUpload", "click", () => {
-  must("#avatarFile")?.click();
-  profileMenu?.classList.add("hidden");
-});
-bind("#avatarFile", "change", async () => {
-  const input = must("#avatarFile");
-  const file = input?.files && input.files[0];
-  if (!file) return;
-  if (file.size > 2 * 1024 * 1024) { alert("File too large (max 2 MB)"); return; }
-  const fd = new FormData();
-  fd.append("avatar", file);
-  const res = await fetch("/api/upload-avatar", { method: "POST", body: fd });
-  const j = await res.json().catch(()=>({ error: "Upload failed" }));
-  if (!res.ok) { alert(j.error || "Upload failed"); return; }
-  state.me.avatarUrl = j.url;
-  lsSet("identity", state.me);
-  setHeaderIdentity();
-  if (state.socket && state.socket.connected && state.code) {
-    state.socket.emit("join", { code: state.code, ...state.me });
-  }
-});
-
 bind("#menuLogout", "click", () => {
   try { state.socket?.disconnect(); } catch {}
   lsDel("identity");
-  state.me = { name: null, email: null, avatarUrl: "" };
+  state.me = { name: null, email: null, avatarUrl: AVATARS[0] };
   state.code = null; state.roomName = "";
   const rooms = must("#rooms"); if (rooms) rooms.innerHTML = "";
   showEmpty();
@@ -144,14 +164,40 @@ async function refreshRooms() {
   if (!list) return;
   list.innerHTML = "";
   if (!data.length) { list.innerHTML = `<div class="muted">No chats yet.</div>`; return; }
+
   for (const r of data) {
     const div = document.createElement("div");
-    div.className = "card";
+    div.className = "room-item";
     const time = new Date(r.lastMessageAt).toLocaleString();
     const title = r.roomName || "(unnamed)";
-    div.innerHTML = `<strong>${escapeHtml(title)}</strong><div class="muted">Last: ${time}</div>`;
-    div.style.cursor = "pointer";
-    div.onclick = () => { chatMenu?.classList.add("hidden"); joinRoom(r.code, r.roomName || ""); };
+    div.innerHTML = `
+      <div class="room-info">
+        <strong>${escapeHtml(title)}</strong>
+        <div class="muted small">Last: ${time}</div>
+      </div>
+      <button class="iconbtn-trash" title="Delete" aria-label="Delete room">
+        <svg viewBox="0 0 24 24" class="icon"><path d="M6 7h12l-1 14H7L6 7zm3-4h6l1 2h4v2H4V5h4l1-2z"/></svg>
+      </button>
+    `;
+    div.querySelector(".room-info").onclick = () => {
+      chatMenu?.classList.add("hidden");
+      joinRoom(r.code, r.roomName || "");
+    };
+    div.querySelector(".iconbtn-trash").onclick = async (ev) => {
+      ev.stopPropagation();
+      if (!confirm("Remove this chat from your list?")) return;
+      await fetch("/api/leave-room", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ code: r.code, email: state.me.email })
+      });
+      // If you deleted the room you're in, reset UI
+      if (state.code === r.code) {
+        state.code = null; state.roomName = "";
+        showEmpty();
+      }
+      refreshRooms();
+    };
     list.appendChild(div);
   }
 }
@@ -208,25 +254,24 @@ function showEmpty() { must("#chatArea")?.classList.add("hidden"); must("#emptyH
 // ---------- room name: text + pen edit ----------
 const roomNameText = must("#roomNameText");
 const roomNameEdit = must("#roomNameEdit");
-const editRoomBtn  = must("#editRoomBtn");
+bind("#editRoomBtn", "click", startEditingRoom);
 
 function showRoomName(name) {
   state.roomName = name || "(unnamed)";
   if (roomNameText) roomNameText.textContent = state.roomName;
   if (roomNameEdit) roomNameEdit.value = state.roomName;
 }
-
 function startEditingRoom() {
-  if (!roomNameText || !roomNameEdit || !editRoomBtn) return;
+  if (!roomNameText || !roomNameEdit) return;
   roomNameText.classList.add("hidden");
-  editRoomBtn.classList.add("hidden");
+  must("#editRoomBtn")?.classList.add("hidden");
   roomNameEdit.classList.remove("hidden");
   roomNameEdit.focus();
 }
 async function stopEditingRoom(save) {
-  if (!roomNameText || !roomNameEdit || !editRoomBtn) return;
+  if (!roomNameText || !roomNameEdit) return;
   roomNameText.classList.remove("hidden");
-  editRoomBtn.classList.remove("hidden");
+  must("#editRoomBtn")?.classList.remove("hidden");
   roomNameEdit.classList.add("hidden");
   if (save && state.code) {
     const newName = roomNameEdit.value.trim();
@@ -239,13 +284,12 @@ async function stopEditingRoom(save) {
       const j = await res.json().catch(()=>({}));
       showRoomName(j.roomName || newName);
     } else {
-      showRoomName(state.roomName); // revert
+      showRoomName(state.roomName);
     }
   } else {
     roomNameEdit.value = state.roomName;
   }
 }
-bind("#editRoomBtn", "click", startEditingRoom);
 if (roomNameEdit) {
   roomNameEdit.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); stopEditingRoom(true); }
@@ -288,6 +332,14 @@ function connectSocket() {
   });
 
   state.socket.on("roomRenamed", ({ roomName }) => showRoomName(roomName || ""));
+  state.socket.on("roomDeleted", ({ code }) => {
+    if (state.code === code) {
+      alert("Room was removed.");
+      state.code = null;
+      showEmpty();
+      refreshRooms();
+    }
+  });
 
   state.socket.on("system", (txt) => console.log(txt));
   state.socket.on("errorMsg", (msg) => alert(msg));
@@ -310,7 +362,7 @@ function addMessageRow(m, { initialLoad=false } = {}) {
 
   const avatar = document.createElement("img");
   avatar.className = "avatar";
-  avatar.src = (m.avatarUrl && m.avatarUrl.trim()) ? m.avatarUrl : "/icons/default-avatar.png";
+  avatar.src = (m.avatarUrl && m.avatarUrl.trim()) ? m.avatarUrl : AVATARS[0];
   avatar.alt = mine ? "me" : (m.name || "user");
 
   const bubble = document.createElement("div");
@@ -369,7 +421,7 @@ showEmpty();
 // util
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c])); }
 
-// Surface missing elements (if any) once:
+// Warn about missing selectors once (useful during integration)
 if (warnMissing.length) {
   console.warn("Missing elements in index.html for client.js bindings:", [...new Set(warnMissing)]);
 }

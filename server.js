@@ -5,8 +5,6 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
-import multer from "multer";
-import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,34 +17,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Ensure uploads dir exists (served from /public/uploads)
-const uploadDir = path.join(__dirname, "public", "uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-// Multer storage for avatars
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    const ext = (path.extname(file.originalname || "") || ".png").toLowerCase();
-    const name = crypto.randomBytes(16).toString("hex") + ext;
-    cb(null, name);
-  }
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 2 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const ok = ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(file.mimetype);
-    cb(ok ? null : new Error("Only PNG/JPG/WebP allowed"));
-  }
-});
-
-// Health check
-app.get("/health", (_req, res) => res.status(200).send("OK"));
-
 // ===== In-memory store =====
-const rooms = new Map(); // code -> {code,name,createdAt,messages[],participants:Set}
-const userRooms = new Map(); // email -> Set<code>
+const rooms = new Map(); // code -> {code,name,createdAt,messages[],participants:Set<string>}
+const userRooms = new Map(); // email(lower) -> Set<code>
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 const genCode = (n = 8) =>
@@ -67,22 +40,25 @@ const ensureRoom = (code, roomName = "") => {
 };
 
 const attachUserToRoom = (email, code) => {
-  if (!userRooms.has(email)) userRooms.set(email, new Set());
-  userRooms.get(email).add(code);
+  const e = (email || "").toLowerCase().trim();
+  if (!e) return;
+  if (!userRooms.has(e)) userRooms.set(e, new Set());
+  userRooms.get(e).add(code);
 };
 
-// Upload avatar
-app.post("/api/upload-avatar", upload.single("avatar"), (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    const urlPath = `/uploads/${req.file.filename}`; // publicly served
-    res.json({ url: urlPath });
-  } catch (e) {
-    res.status(400).json({ error: e.message || "Upload failed" });
+const detachUserFromRoom = (email, code) => {
+  const e = (email || "").toLowerCase().trim();
+  if (!e) return;
+  if (userRooms.has(e)) {
+    userRooms.get(e).delete(code);
+    if (userRooms.get(e).size === 0) userRooms.delete(e);
   }
-});
+};
 
-// List my rooms (name only)
+// Health check
+app.get("/health", (_req, res) => res.status(200).send("OK"));
+
+// List my rooms
 app.get("/api/my-rooms", (req, res) => {
   const email = String(req.query.email || "").trim().toLowerCase();
   const codes = [...(userRooms.get(email) || [])];
@@ -100,7 +76,7 @@ app.get("/api/my-rooms", (req, res) => {
   res.json(result);
 });
 
-// Create / Join
+// Create room
 app.post("/api/create-room", (req, res) => {
   const { email, roomName } = req.body || {};
   const code = genCode(8);
@@ -112,6 +88,7 @@ app.post("/api/create-room", (req, res) => {
   res.json({ code, roomName: room.name || "" });
 });
 
+// Join room (multi-user allowed)
 app.post("/api/join-room", (req, res) => {
   const { code, email } = req.body || {};
   if (!code || !rooms.has(code)) return res.status(404).json({ error: "Room not found" });
@@ -131,6 +108,27 @@ app.post("/api/rename-room", (req, res) => {
   rooms.get(code).name = name;
   io.to(code).emit("roomRenamed", { roomName: name });
   res.json({ ok: true, roomName: name });
+});
+
+// Leave / delete from my list
+// If the room becomes empty, it is removed entirely.
+app.post("/api/leave-room", (req, res) => {
+  const { code, email } = req.body || {};
+  const e = (email || "").toLowerCase().trim();
+  if (!code || !rooms.has(code)) return res.status(404).json({ error: "Room not found" });
+  if (!e) return res.status(400).json({ error: "Email required" });
+
+  const room = rooms.get(code);
+  room.participants.delete(e);
+  detachUserFromRoom(e, code);
+
+  // If no participants left, delete room permanently
+  if (room.participants.size === 0) {
+    rooms.delete(code);
+    io.to(code).emit("roomDeleted", { code });
+  }
+
+  res.json({ ok: true });
 });
 
 // ===== Socket.IO =====

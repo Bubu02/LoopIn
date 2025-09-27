@@ -54,6 +54,15 @@ button.small { padding:6px 10px; font-size:12px; }
 .avatar.sm { width:28px; height:28px; }
 .avatar.xl { width:256px; height:256px; display:block; margin:auto; border-radius:16px; }
 
+/* Avatar picker grid */
+.avatar-grid { display:grid; grid-template-columns: repeat(7, 48px); gap:10px; justify-content:center; }
+@media (max-width: 520px) { .avatar-grid { grid-template-columns: repeat(4, 48px); } }
+.avatar-option {
+  width:48px; height:48px; border-radius:50%;
+  border:1px solid var(--border); overflow:hidden; cursor:pointer;
+}
+.avatar-option img { width:100%; height:100%; display:block; }
+
 /* Profile menu */
 .menu {
   position: fixed; top: 64px; right: 16px;
@@ -82,10 +91,7 @@ button.small { padding:6px 10px; font-size:12px; }
 }
 
 /* Naked pen icon */
-.iconbtn-naked {
-  background:transparent; border:none; padding:0; margin:0;
-  display:grid; place-items:center;
-}
+.iconbtn-naked { background:transparent; border:none; padding:0; margin:0; display:grid; place-items:center; }
 .iconbtn-naked .icon { width:16px; height:16px; fill:#e5e7eb; }
 .iconbtn-naked:hover .icon { fill:#22d3ee; }
 
@@ -115,17 +121,13 @@ button.small { padding:6px 10px; font-size:12px; }
   flex:1; background:transparent; border:none; outline:none;
   padding:10px 6px; color:var(--fg); font-size:16px;
 }
-.sendbtn {
-  width:44px; height:44px; border-radius:9999px;
-  display:grid; place-items:center;
-  background:var(--accent); border:none; cursor:pointer;
-}
+.sendbtn { width:44px; height:44px; border-radius:9999px; display:grid; place-items:center; background:var(--accent); border:none; cursor:pointer; }
 .sendbtn .sendicon { width:20px; height:20px; fill:#001018; }
 
 /* Messages bubble */
 .msgrow { display:flex; align-items:flex-end; gap:8px; }
 .msgrow.right { justify-content:flex-end; }
-.msgrow img.avatar { width:20px; height:20px; }
+.msgrow img.avatar { width:28px; height:28px; }
 .bubble {
   max-width:72%; align-self:flex-start;
   background:#121212; border:1px solid #1f1f1f;

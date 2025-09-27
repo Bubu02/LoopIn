@@ -31,12 +31,21 @@
       <div id="menuName" class="menuitem text"></div>
       <div id="menuEmail" class="menuitem text muted"></div>
       <div class="menusep"></div>
-      <button id="menuView" role="menuitem">View image</button>
-      <button id="menuUpload" role="menuitem">Upload new</button>
+      <button id="menuChooseAvatar" role="menuitem">Choose avatar</button>
       <div class="menusep"></div>
       <button id="menuLogout" role="menuitem">Logout</button>
     </div>
-    <input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp" class="hidden">
+
+    <!-- Avatar picker modal -->
+    <div id="avatarPicker" class="overlay hidden" role="dialog" aria-modal="true">
+      <div class="modal card">
+        <h3>Pick an avatar</h3>
+        <div id="avatarGrid" class="avatar-grid"></div>
+        <div class="row mt" style="justify-content:flex-end">
+          <button id="closePicker" class="ghost">Close</button>
+        </div>
+      </div>
+    </div>
 
     <button id="btnInstall" class="ghost" hidden>Install App</button>
   </header>
@@ -65,7 +74,7 @@
             <input id="joinCode" placeholder="Enter 8-char code" maxlength="8">
             <button id="confirmJoin">Join</button>
           </div>
-          <p class="muted">Ask your partner for their code.</p>
+          <p class="muted">Share code to add multiple people to a room.</p>
         </div>
 
         <div id="createdPanel" class="mt hidden">
@@ -110,7 +119,7 @@
           <input id="msg" placeholder="Type a message…">
           <button class="sendbtn" type="submit" aria-label="Send">
             <svg viewBox="0 0 24 24" class="sendicon">
-              <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+              <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
             </svg>
           </button>
         </form>
@@ -123,29 +132,6 @@
       <p class="muted">Use <em>Chats ▾</em> to create or open a conversation.</p>
     </div>
   </main>
-
-  <!-- Avatar modal -->
-  <div id="avatarModal" class="overlay hidden" role="dialog" aria-modal="true">
-    <div class="modal card">
-      <img id="avatarPreview" class="avatar xl" src="/icons/default-avatar.png" alt="avatar preview" />
-      <div class="row mt" style="justify-content:flex-end">
-        <button id="closeAvatar" class="ghost">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- First-time identity -->
-  <div id="overlay" class="overlay hidden">
-    <div class="modal card">
-      <h3>Welcome — tell us who you are</h3>
-      <div class="col">
-        <input id="nameInput" placeholder="Your name">
-        <input id="emailInput" placeholder="Email ID" type="email">
-        <button id="saveIdentity" class="primary">Continue</button>
-      </div>
-      <p class="muted">Stored locally to label your messages & find your chats.</p>
-    </div>
-  </div>
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/client.js" type="module"></script>
