@@ -5,7 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
   <title>LoopIn</title>
 
-  <link rel="manifest" href="/manifest.webmanifest">
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="public\favicon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="public\favicon.png">
+  <link rel="apple-touch-icon" href="public\favicon.png">
+  <meta name="msapplication-TileImage" content="public\favicon.png">
+
+  <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#000000"/>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -20,7 +26,6 @@
     <div class="grow"></div>
 
     <div id="meBox" class="mebox" aria-haspopup="true" aria-expanded="false">
-      <!-- default avatar now PNG -->
       <img id="meAvatar" class="avatar sm" src="/avatars/1.png" alt="me">
       <div id="whoName" class="muted"></div>
     </div>
@@ -126,6 +131,20 @@
       <p class="muted">Use <em>Chats ▾</em> to create or open a conversation.</p>
     </div>
   </main>
+
+  <!-- First-time identity -->
+  <div id="overlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal card">
+      <h3>Welcome — tell us who you are</h3>
+      <div class="col">
+        <input id="nameInput" placeholder="Your name" autocomplete="name">
+        <input id="emailInput" placeholder="Email ID" type="email" autocomplete="email">
+        <button id="saveIdentity" class="primary">Continue</button>
+        <button id="resetApp" class="ghost" style="margin-top:6px">Reset app data</button>
+      </div>
+      <p class="muted">We store this locally to label your messages & find your chats.</p>
+    </div>
+  </div>
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/client.js" type="module"></script>
