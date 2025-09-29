@@ -48,23 +48,14 @@ function setHeaderIdentity() {
   if (mname) mname.textContent = state.me.name || "";
   if (memail) memail.textContent = state.me.email || "";
 }
-
 function showLogin() { must("#overlay")?.classList.remove("hidden"); }
 function hideLogin() { must("#overlay")?.classList.add("hidden"); }
 
 function loadIdentity() {
   const saved = normalizeIdentity(lsGet("identity"));
-  if (saved) {
-    state.me = saved;
-    setHeaderIdentity();
-    refreshRooms();
-  } else {
-    // clear any corrupted value
-    lsDel("identity");
-    showLogin();
-  }
+  if (saved) { state.me = saved; setHeaderIdentity(); refreshRooms(); }
+  else { lsDel("identity"); showLogin(); }
 }
-
 on("#saveIdentity","click",()=>{
   const name = must("#nameInput")?.value?.trim();
   const email = must("#emailInput")?.value?.trim()?.toLowerCase();
@@ -75,24 +66,9 @@ on("#saveIdentity","click",()=>{
   setHeaderIdentity();
   refreshRooms();
 });
+on("#resetApp","click",()=>{ try{ localStorage.clear(); }catch{} try{ state.socket?.disconnect(); }catch{} location.reload(); });
+on("#menuLogout","click",()=>{ try{ state.socket?.disconnect(); }catch{} try{ localStorage.clear(); }catch{} state.code=null; state.roomName=""; location.reload(); });
 
-/* Hard reset escape hatch */
-on("#resetApp","click",()=>{
-  try { localStorage.clear(); } catch {}
-  try { state.socket?.disconnect(); } catch {}
-  location.reload();
-});
-
-/* Logout always works (even if identity is corrupted) */
-on("#menuLogout","click",()=>{
-  try { state.socket?.disconnect(); } catch {}
-  try { localStorage.clear(); } catch {}
-  state.code = null; state.roomName = "";
-  showEmpty();
-  location.reload(); // guarantees clean state
-});
-
-/* also react to storage changes (multi-tab) */
 window.addEventListener("storage",(e)=>{
   if (e.key === "identity") {
     const id = normalizeIdentity(lsGet("identity"));
@@ -218,32 +194,64 @@ if (roomNameEdit){
 }
 function showRoomName(name){ state.roomName = name || "(unnamed)"; if (roomNameText) roomNameText.textContent = state.roomName; if (roomNameEdit) roomNameEdit.value = state.roomName; }
 
-/* ========== Socket & messages ========== */
-function setRoomUI(code, roomName){ state.code = code; showRoomName(roomName||""); const rc = must("#roomCode"); if(rc) rc.textContent = code || ""; const msgs = must("#messages"); if(msgs) msgs.innerHTML=""; showChat(); }
+/* ========== Socket & messages (with ticks) ========== */
+function setRoomUI(code, roomName){
+  state.code = code;
+  showRoomName(roomName||"");
+  const rc = must("#roomCode"); if(rc) rc.textContent = code || "";
+  const msgs = must("#messages"); if(msgs) msgs.innerHTML="";
+  showChat();
+}
 function connectSocket(){
   if (state.socket) state.socket.disconnect();
   state.socket = io();
 
   state.socket.on("connect",()=>{ if (state.code) state.socket.emit("join",{ code: state.code, ...state.me }); });
 
-  state.socket.on("history",(payload)=>{ const { roomName, messages, code } = payload || { roomName:"", messages:[], code:"" };
+  state.socket.on("history",(payload)=>{
+    const { roomName, messages, code } = payload || { roomName:"", messages:[], code:"" };
     if (roomName) showRoomName(roomName);
     if (code){ const rc=must("#roomCode"); if(rc) rc.textContent = code; }
-    const msgs = must("#messages"); if(!msgs) return; msgs.innerHTML=""; for (const m of messages) addMessageRow(m,{initialLoad:true}); scrollToBottom(true); });
+    const msgs = must("#messages"); if(!msgs) return;
+    msgs.innerHTML="";
+    for (const m of messages) addMessageRow(m,{initialLoad:true});
+    scrollToBottom(true);
+    // Mark others' messages as seen on load
+    reportSeenFor(messages.filter(m => (m.email||"").toLowerCase() !== (state.me.email||"").toLowerCase()).map(m=>m.id));
+  });
 
-  state.socket.on("message",(m)=>{ const stick = isNearBottom(); addMessageRow(m); if(stick) scrollToBottom(); });
+  state.socket.on("message",(m)=>{
+    const stick = isNearBottom();
+    addMessageRow(m);
+    if(stick) scrollToBottom();
+    // If the message is from someone else, mark it seen immediately
+    if ((m.email||"").toLowerCase() !== (state.me.email||"").toLowerCase()) {
+      reportSeenFor([m.id]);
+    }
+  });
+
+  // Sender-side tick upgrade
+  state.socket.on("messageSeen", ({ id }) => {
+    const tick = document.querySelector(`[data-ticks-for="${CSS.escape(id)}"]`);
+    if (tick) tick.classList.add("seen"), (tick.textContent = "✓✓");
+  });
 
   state.socket.on("roomRenamed",({ roomName })=> showRoomName(roomName||""));
   state.socket.on("roomDeleted",({ code })=>{ if (state.code===code){ alert("Room was deleted by the creator."); state.code=null; showEmpty(); refreshRooms(); }});
-
   state.socket.on("system",(txt)=>console.log(txt));
   state.socket.on("errorMsg",(msg)=>alert(msg));
+}
+
+/* Report seen */
+function reportSeenFor(ids){
+  if (!ids?.length || !state.socket?.connected || !state.code) return;
+  state.socket.emit("markSeen", { code: state.code, messageIds: ids });
 }
 
 /* copy room code */
 on("#copyCode","click",async()=>{ if(!state.code) return; try{ await navigator.clipboard.writeText(state.code); alert("Room code copied"); }catch{ alert("Could not copy"); }});
 
-/* render messages */
+/* Render messages (ticks element placed after text for bottom-right CSS) */
 function addMessageRow(m,{initialLoad=false}={}){
   const msgs = must("#messages"); if(!msgs) return;
   const mine = (m.email||"").toLowerCase() === (state.me.email||"").toLowerCase();
@@ -259,12 +267,25 @@ function addMessageRow(m,{initialLoad=false}={}){
   const who = mine ? "You" : (m.name || "Anonymous");
   const when = new Date(m.ts || Date.now()).toLocaleTimeString();
   const nameColor = colorFor(m.email || m.name || "");
-  bubble.innerHTML = `<div class="meta"><span class="who" style="color:${nameColor}">${escapeHtml(who)}</span> • ${when}</div><div class="text">${escapeHtml(m.text || "")}</div>`;
+
+  let ticks = "";
+  if (mine) {
+    const seen = (m.status === "seen");
+    ticks = `<span class="ticks ${seen ? "seen" : ""}" data-ticks-for="${m.id}">${seen ? "✓✓" : "✓"}</span>`;
+  }
+
+  bubble.innerHTML = `
+    <div class="meta"><span class="who" style="color:${nameColor}">${escapeHtml(who)}</span> • ${when}</div>
+    <div class="text">${escapeHtml(m.text || "")}</div>
+    ${ticks}
+  `;
 
   if (mine){ row.appendChild(bubble); row.appendChild(avatar); } else { row.appendChild(avatar); row.appendChild(bubble); }
   msgs.appendChild(row);
+
   if (!initialLoad && isNearBottom()) scrollToBottom();
 }
+
 function isNearBottom(){ const el = must("#messages"); if(!el) return true; return el.scrollTop + el.clientHeight >= el.scrollHeight - 80; }
 function scrollToBottom(immediate=false){ const el = must("#messages"); if(!el) return; if(immediate) el.scrollTop = el.scrollHeight; else el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }); }
 
@@ -274,9 +295,12 @@ on("#sendForm","submit",(e)=>{ e.preventDefault(); const input = must("#msg"); c
   if (!text) return; state.socket.emit("message",{ text }); if (input) input.value=""; scrollToBottom(); });
 
 /* join helper */
-async function joinRoom(code, roomName=""){ setRoomUI(code, roomName); if(!state.socket) connectSocket();
+async function joinRoom(code, roomName=""){
+  setRoomUI(code, roomName);
+  if(!state.socket) connectSocket();
   if (state.socket.connected){ state.socket.emit("join",{ code, ...state.me }); }
-  else { const onConnect = ()=>{ state.socket.off("connect", onConnect); state.socket.emit("join",{ code, ...state.me }); }; state.socket.on("connect", onConnect); } }
+  else { const onConnect = ()=>{ state.socket.off("connect", onConnect); state.socket.emit("join",{ code, ...state.me }); }; state.socket.on("connect", onConnect); }
+}
 
 /* start */
 loadIdentity();

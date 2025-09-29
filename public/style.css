@@ -116,7 +116,7 @@ button.small { padding:6px 10px; font-size:12px; }
 .iconbtn-trash .icon { width:16px; height:16px; fill:#e5e7eb; }
 .iconbtn-trash:hover { border-color:#4b4b4b; }
 
-/* Messages */
+/* Messages container */
 #messages {
   flex:1; min-height:0; background:#050505;
   border:1px solid var(--border); border-radius:14px;
@@ -127,39 +127,21 @@ button.small { padding:6px 10px; font-size:12px; }
 }
 #messages::-webkit-scrollbar{ display:none; }
 
-/* Composer */
-.composer-shell { 
-  position:sticky; 
-  bottom:0; 
-  background:#040404; 
-  padding-top:6px;   /* smaller top gap */
-}
-
+/* Composer (shorter height) */
+.composer-shell { position:sticky; bottom:0; background:#040404; padding-top:6px; }
 .composer {
-  display:flex; align-items:center; gap:8px;
-  width:100%;
-  background:#0d0d0d;
-  border:1px solid var(--border);
-  border-radius:9999px;
-  padding:4px 8px;   /* reduced vertical padding */
+  display:flex; align-items:center; gap:8px; width:100%;
+  background:#0d0d0d; border:1px solid var(--border);
+  border-radius:9999px; padding:4px 8px;
   box-shadow:0 6px 20px rgba(0,0,0,.25);
 }
-
 .composer input#msg {
-  flex:1;
-  background:transparent;
-  border:none; outline:none;
-  padding:6px 4px;   /* slimmer input */
-  color:var(--fg);
-  font-size:15px;    /* slightly smaller text */
-  line-height:1.2;   /* tighter line height */
+  flex:1; background:transparent; border:none; outline:none;
+  padding:6px 4px; color:var(--fg); font-size:15px; line-height:1.2;
 }
-
 .sendbtn {
-  width:36px; height:36px;   /* smaller send button */
-  border-radius:9999px;
-  display:grid; place-items:center;
-  background:var(--accent);
+  width:36px; height:36px; border-radius:9999px;
+  display:grid; place-items:center; background:var(--accent);
   border:none; cursor:pointer;
 }
 .sendbtn .sendicon { width:16px; height:16px; fill:#001018; }
@@ -170,34 +152,39 @@ button.small { padding:6px 10px; font-size:12px; }
 .msgrow img.avatar { width:28px; height:28px; }
 
 .bubble {
-  max-width:72%; align-self:flex-start;
+  position:relative;                 /* allow absolute ticks */
+  max-width:72%;
+  align-self:flex-start;
   background:#121212; border:1px solid #1f1f1f;
-  border-radius:14px; padding:10px 12px;
+  border-radius:14px; padding:10px 28px 18px 12px; /* extra right/bottom room for ticks */
   word-wrap:break-word;
 }
 .bubble .meta {
   font-size:11px; color:var(--muted);
-  margin-bottom:4px;
-  text-align:left;         /* default left */
+  margin-bottom:4px; text-align:left;
 }
 .bubble .meta .who { font-weight:700; }
 .bubble .text {
   font-size:15px; color:#f1f5f9;
-  text-align:left;         /* force left for multi-line readability */
-  white-space:pre-wrap;    /* preserve newlines */
+  text-align:left; white-space:pre-wrap;
 }
-
 .bubble.mine {
-  align-self:flex-end;
-  background:#0e2230; border:1px solid #123446;
+  align-self:flex-end; background:#0e2230; border:1px solid #123446;
 }
-.bubble.mine .meta { text-align:right; } /* only meta right for my messages */
+.bubble.mine .meta { text-align:right; }
+
+/* Ticks (bottom-right corner of my bubbles) */
+.ticks {
+  position:absolute;
+  right:10px; bottom:8px;
+  font-size:12px; line-height:1;
+  color:#8a8a8a; user-select:none;
+}
+.ticks.seen { color: var(--accent); }
 
 /* Overlays */
 .overlay {
-  position:fixed; inset:0;
-  background:rgba(0,0,0,.75);
-  display:grid; place-items:center;
-  z-index:1200;
+  position:fixed; inset:0; background:rgba(0,0,0,.75);
+  display:grid; place-items:center; z-index:1200;
 }
 .modal { width:min(92vw, 480px); }

@@ -23,9 +23,11 @@ const rooms = new Map();
   rooms.set(code, {
     code,
     name,
-    owner: "owner@email",
-    createdAt: ts,
-    messages: [{ name, email, text, ts, avatarUrl }],
+    owner,
+    createdAt,
+    messages: [
+      { id, name, email, text, ts, avatarUrl, status: "sent" | "seen" }
+    ],
     participants: Set<email>
   });
 */
@@ -94,9 +96,7 @@ app.post("/api/create-room", (req, res) => {
   const owner = (email || "").toLowerCase();
   const code = genCode(8);
   const room = ensureRoom(code, { roomName, owner });
-  if (owner) {
-    attachUserToRoom(owner, code);
-  }
+  if (owner) attachUserToRoom(owner, code);
   res.json({ code, roomName: room.name || "" });
 });
 
@@ -134,7 +134,6 @@ app.post("/api/leave-room", (req, res) => {
   room.participants.delete(e);
   detachUserFromRoom(e, code);
 
-  // If no participants left, delete permanently
   if (room.participants.size === 0) {
     rooms.delete(code);
     io.to(code).emit("roomDeleted", { code });
@@ -150,7 +149,6 @@ app.post("/api/delete-room", (req, res) => {
   const room = rooms.get(code);
   if (room.owner !== e) return res.status(403).json({ error: "Only the creator can delete this room." });
 
-  // Remove room and unlink from all user lists
   rooms.delete(code);
   for (const [ue, set] of userRooms.entries()) {
     set.delete(code);
@@ -173,18 +171,20 @@ io.on("connection", (socket) => {
     };
     const room = rooms.get(code);
     socket.emit("history", { roomName: room.name || "", messages: room.messages, code });
-    socket.to(code).emit("system", `${name || "Someone"} joined the chat.`);
   });
 
+  /* New message -> status 'sent' */
   socket.on("message", ({ text }) => {
     const u = socket.data.user;
     if (!u?.code) return;
     const msg = {
+      id: crypto.randomUUID(),
       name: u.name || "Anonymous",
       email: u.email || "",
       text: String(text || "").slice(0, 2000),
       ts: Date.now(),
-      avatarUrl: u.avatarUrl || ""
+      avatarUrl: u.avatarUrl || "",
+      status: "sent"
     };
     const room = rooms.get(u.code);
     if (!room) return;
@@ -192,6 +192,23 @@ io.on("connection", (socket) => {
     room.participants.add(u.email);
     attachUserToRoom(u.email, u.code);
     io.to(u.code).emit("message", msg);
+  });
+
+  /* Mark one or more messages as seen by this viewer */
+  socket.on("markSeen", ({ code, messageIds }) => {
+    const viewer = (socket.data.user?.email || "").toLowerCase();
+    if (!code || !rooms.has(code) || !Array.isArray(messageIds) || !viewer) return;
+    const room = rooms.get(code);
+
+    for (const id of messageIds) {
+      const m = room.messages.find(x => x.id === id);
+      if (!m) continue;
+      if (m.email && m.email !== viewer && m.status !== "seen") {
+        m.status = "seen";
+        // Notify everyone (esp. the sender) that this message is now seen
+        io.to(code).emit("messageSeen", { id: m.id });
+      }
+    }
   });
 });
 
