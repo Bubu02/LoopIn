@@ -10,6 +10,7 @@ body {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Arial;
   display:flex; flex-direction:column;
 }
+
 .hidden { display:none!important; }
 .mt { margin-top:10px; }
 .muted { color:var(--muted); font-size:12px; }
@@ -17,14 +18,28 @@ body {
 .code { font-family: ui-monospace, Menlo, monospace; letter-spacing:2px; font-weight:800; }
 .code.small { font-size:12px; }
 
+/* ── Top bar ─────────────────────────────────────────────── */
 .topbar {
   position:sticky; top:0; z-index:100;
   display:flex; align-items:center; gap:12px;
   padding:12px 16px; border-bottom:1px solid var(--border); background:#040404;
 }
-.topbar h1 { font-size:18px; margin:0; }
+
+/* Image logo that replaces the text title */
+.logo {
+  height: 28px;            /* tweak as you like */
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.topbar h1 {               /* only used if you keep text fallback */
+  font-size:18px; margin:0;
+}
+
 .grow { flex:1; }
 
+/* ── Buttons & inputs ───────────────────────────────────── */
 button, input {
   padding:10px 12px; border-radius:10px;
   border:1px solid var(--border); background:#0d0d0d; color:var(--fg);
@@ -48,14 +63,14 @@ button.small { padding:6px 10px; font-size:12px; }
   overflow:hidden;
 }
 
-/* Dropdown */
+/* ── Chats dropdown ─────────────────────────────────────── */
 .dropdown {
   position:fixed; left:16px; top:64px; z-index:1000;
   width:min(520px, 92vw);
 }
 @media (max-width:700px){ .dropdown{ left:8px; right:8px; width:auto; } }
 
-/* Profile */
+/* ── Profile / avatar ───────────────────────────────────── */
 .mebox { display:flex; align-items:center; gap:8px; margin-right:8px; cursor:pointer; }
 .avatar { border-radius:50%; border:1px solid var(--border); object-fit:cover; background:#111; }
 .avatar.sm { width:28px; height:28px; }
@@ -84,7 +99,7 @@ button.small { padding:6px 10px; font-size:12px; }
 }
 .avatar-option img { width:100%; height:100%; object-fit:cover; display:block; }
 
-/* Chat layout */
+/* ── Chat layout ────────────────────────────────────────── */
 .chat-shell { display:flex; flex-direction:column; gap:10px; flex:1; min-height:0; }
 .chat-header { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
 
@@ -116,7 +131,7 @@ button.small { padding:6px 10px; font-size:12px; }
 .iconbtn-trash .icon { width:16px; height:16px; fill:#e5e7eb; }
 .iconbtn-trash:hover { border-color:#4b4b4b; }
 
-/* Messages container */
+/* ── Messages container ─────────────────────────────────── */
 #messages {
   flex:1; min-height:0; background:#050505;
   border:1px solid var(--border); border-radius:14px;
@@ -127,7 +142,7 @@ button.small { padding:6px 10px; font-size:12px; }
 }
 #messages::-webkit-scrollbar{ display:none; }
 
-/* Composer (shorter height) */
+/* ── Composer (shorter height) ──────────────────────────── */
 .composer-shell { position:sticky; bottom:0; background:#040404; padding-top:6px; }
 .composer {
   display:flex; align-items:center; gap:8px; width:100%;
@@ -140,24 +155,13 @@ button.small { padding:6px 10px; font-size:12px; }
   padding:6px 4px; color:var(--fg); font-size:15px; line-height:1.2;
 }
 .sendbtn {
-  width: 36px;
-  height: 36px;
-  border-radius: 9999px;
-  display: grid;
-  place-items: center;
-  background: var(--accent);
-  border: none;
-  cursor: pointer;
+  width:36px; height:36px; border-radius:9999px;
+  display:grid; place-items:center; background:var(--accent);
+  border:none; cursor:pointer;
 }
+.sendbtn .sendicon { width:16px; height:16px; fill:#001018; }
 
-.sendbtn .sendicon {
-  width: 16px;
-  height: 16px;
-  fill: #001018;
-  transform: rotate(-45deg); /* Tilt toward northeast */
-}
-
-/* Message bubbles */
+/* ── Message bubbles ───────────────────────────────────── */
 .msgrow { display:flex; align-items:flex-end; gap:8px; }
 .msgrow.right { justify-content:flex-end; }
 .msgrow img.avatar { width:28px; height:28px; }
@@ -179,6 +183,7 @@ button.small { padding:6px 10px; font-size:12px; }
   font-size:15px; color:#f1f5f9;
   text-align:left; white-space:pre-wrap;
 }
+
 .bubble.mine {
   align-self:flex-end; background:#0e2230; border:1px solid #123446;
 }
@@ -186,22 +191,14 @@ button.small { padding:6px 10px; font-size:12px; }
 
 /* Ticks (bottom-right corner of my bubbles) */
 .ticks {
-  position: absolute;
-  right: 10px;
-  bottom: 8px;
-  font-size: 12px;
-  line-height: 1;
-  color: #8a8a8a;
-  user-select: none;
-  letter-spacing: -0.5px; /* Pull ticks closer together */
-  font-family: 'Segoe UI', sans-serif; /* Optional: clean, compact font */
+  position:absolute;
+  right:10px; bottom:8px;
+  font-size:12px; line-height:1;
+  color:#8a8a8a; user-select:none;
 }
+.ticks.seen { color: var(--accent); }
 
-.ticks.seen {
-  color: var(--accent);
-}
-
-/* Overlays */
+/* ── Overlays ───────────────────────────────────────────── */
 .overlay {
   position:fixed; inset:0; background:rgba(0,0,0,.75);
   display:grid; place-items:center; z-index:1200;
