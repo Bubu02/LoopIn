@@ -18,7 +18,8 @@ const state = {
   roomName: "",
   socket: null,
   me: { name: null, email: null, avatarUrl: AVATARS[0] },
-  deferredPrompt: null
+  notifyEnabled: false,
+  windowFocused: true
 };
 
 /* ========== storage utils (robust) ========== */
@@ -37,6 +38,41 @@ function normalizeIdentity(obj){
   return { name, email, avatarUrl: obj.avatarUrl || AVATARS[0] };
 }
 
+/* ========== Notifications ========== */
+function updateNotifyButton(){
+  const btn = must("#menuToggleNotify");
+  if (!btn) return;
+  btn.textContent = state.notifyEnabled ? "Disable notifications" : "Enable notifications";
+}
+async function requestNotifications(){
+  try{
+    if (!("Notification" in window)) { alert("Notifications are not supported in this browser."); return false; }
+    const perm = await Notification.requestPermission();
+    return perm === "granted";
+  } catch { return false; }
+}
+on("#menuToggleNotify","click", async ()=>{
+  if (!state.notifyEnabled) {
+    const ok = await requestNotifications();
+    if (!ok) return;
+    state.notifyEnabled = true;
+  } else {
+    state.notifyEnabled = false;
+  }
+  lsSet("notifyEnabled", !!state.notifyEnabled);
+  updateNotifyButton();
+});
+window.addEventListener("focus", ()=> state.windowFocused = true);
+window.addEventListener("blur",  ()=> state.windowFocused = false);
+
+function maybeNotify({ title, body }){
+  if (!state.notifyEnabled) return;
+  if (document.visibilityState === "visible" && state.windowFocused) return; // don't notify when user is here
+  try {
+    new Notification(title, { body, icon: "/favicon.png", badge: "/favicon.png" });
+  } catch {}
+}
+
 /* ========== identity flow ========== */
 function setHeaderIdentity() {
   const who = must("#whoName");
@@ -53,6 +89,8 @@ function hideLogin() { must("#overlay")?.classList.add("hidden"); }
 
 function loadIdentity() {
   const saved = normalizeIdentity(lsGet("identity"));
+  state.notifyEnabled = !!lsGet("notifyEnabled");
+  updateNotifyButton();
   if (saved) { state.me = saved; setHeaderIdentity(); refreshRooms(); }
   else { lsDel("identity"); showLogin(); }
 }
@@ -194,7 +232,7 @@ if (roomNameEdit){
 }
 function showRoomName(name){ state.roomName = name || "(unnamed)"; if (roomNameText) roomNameText.textContent = state.roomName; if (roomNameEdit) roomNameEdit.value = state.roomName; }
 
-/* ========== Socket & messages (with ticks) ========== */
+/* ========== Socket & messages (with ticks + notifications) ========== */
 function setRoomUI(code, roomName){
   state.code = code;
   showRoomName(roomName||"");
@@ -209,14 +247,19 @@ function connectSocket(){
   state.socket.on("connect",()=>{ if (state.code) state.socket.emit("join",{ code: state.code, ...state.me }); });
 
   state.socket.on("history",(payload)=>{
-    const { roomName, messages, code } = payload || { roomName:"", messages:[], code:"" };
+    const { roomName, messages, code, unseenForYou = 0 } = payload || { roomName:"", messages:[], code:"" };
     if (roomName) showRoomName(roomName);
     if (code){ const rc=must("#roomCode"); if(rc) rc.textContent = code; }
     const msgs = must("#messages"); if(!msgs) return;
     msgs.innerHTML="";
     for (const m of messages) addMessageRow(m,{initialLoad:true});
     scrollToBottom(true);
-    // Mark others' messages as seen on load
+
+    if (unseenForYou > 0) {
+      maybeNotify({ title: roomName || "New messages", body: `${unseenForYou} unread message${unseenForYou>1?"s":""}` });
+    }
+
+    // Mark others' messages as seen for me on load
     reportSeenFor(messages.filter(m => (m.email||"").toLowerCase() !== (state.me.email||"").toLowerCase()).map(m=>m.id));
   });
 
@@ -224,8 +267,10 @@ function connectSocket(){
     const stick = isNearBottom();
     addMessageRow(m);
     if(stick) scrollToBottom();
-    // If the message is from someone else, mark it seen immediately
+
+    // If the message is from someone else, notify & mark seen
     if ((m.email||"").toLowerCase() !== (state.me.email||"").toLowerCase()) {
+      maybeNotify({ title: state.roomName || "New message", body: `${m.name || "Someone"}: ${m.text?.slice(0,80) || ""}` });
       reportSeenFor([m.id]);
     }
   });

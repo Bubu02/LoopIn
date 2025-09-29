@@ -26,12 +26,12 @@ const rooms = new Map();
     owner,
     createdAt,
     messages: [
-      { id, name, email, text, ts, avatarUrl, status: "sent" | "seen" }
+      { id, name, email, text, ts, avatarUrl, status: "sent" | "seen", seenBy: Set<emailLower> }
     ],
-    participants: Set<email>
+    participants: Set<emailLower>
   });
 */
-const userRooms = new Map(); // email -> Set<code>
+const userRooms = new Map(); // emailLower -> Set<code>
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 const genCode = (n = 8) =>
@@ -170,10 +170,15 @@ io.on("connection", (socket) => {
       avatarUrl: avatarUrl || ""
     };
     const room = rooms.get(code);
-    socket.emit("history", { roomName: room.name || "", messages: room.messages, code });
+
+    // compute "unseen for you"
+    const viewer = socket.data.user.email;
+    const unseenForYou = room.messages.filter(m => m.email !== viewer && !m.seenBy?.has(viewer)).length;
+
+    socket.emit("history", { roomName: room.name || "", messages: room.messages, code, unseenForYou });
   });
 
-  /* New message -> status 'sent' */
+  /* New message -> status 'sent', seenBy = empty set for now */
   socket.on("message", ({ text }) => {
     const u = socket.data.user;
     if (!u?.code) return;
@@ -184,14 +189,17 @@ io.on("connection", (socket) => {
       text: String(text || "").slice(0, 2000),
       ts: Date.now(),
       avatarUrl: u.avatarUrl || "",
-      status: "sent"
+      status: "sent",
+      seenBy: new Set() // track per-user views (excluding sender)
     };
     const room = rooms.get(u.code);
     if (!room) return;
     room.messages.push(msg);
     room.participants.add(u.email);
     attachUserToRoom(u.email, u.code);
-    io.to(u.code).emit("message", msg);
+
+    // emit to everyone
+    io.to(u.code).emit("message", { ...msg, seenBy: undefined }); // do not send Set over the wire
   });
 
   /* Mark one or more messages as seen by this viewer */
@@ -203,10 +211,15 @@ io.on("connection", (socket) => {
     for (const id of messageIds) {
       const m = room.messages.find(x => x.id === id);
       if (!m) continue;
-      if (m.email && m.email !== viewer && m.status !== "seen") {
-        m.status = "seen";
-        // Notify everyone (esp. the sender) that this message is now seen
-        io.to(code).emit("messageSeen", { id: m.id });
+      if (!m.seenBy) m.seenBy = new Set();
+      if (m.email !== viewer && !m.seenBy.has(viewer)) {
+        m.seenBy.add(viewer);
+
+        // upgrade sender ticks from ✓ to ✓✓ when at least one viewer has seen
+        if (m.status !== "seen" && m.seenBy.size >= 1) {
+          m.status = "seen";
+          io.to(code).emit("messageSeen", { id: m.id });
+        }
       }
     }
   });

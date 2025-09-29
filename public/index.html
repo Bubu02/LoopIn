@@ -6,10 +6,12 @@
   <title>LoopIn</title>
 
   <!-- Favicon -->
-  <link rel="apple-touch-icon" href="public/icons/icon-192.png">
-  <meta name="msapplication-TileImage" content="public/icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/favicon.png">
+  <meta name="msapplication-TileImage" content="/favicon.png">
 
-  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#000000"/>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -19,6 +21,7 @@
 </head>
 <body>
   <header class="topbar">
+    <!-- Use your custom image logo -->
     <img src="/icons/loopin_text_logo.png" alt="LoopIn" class="logo">
     <button id="btnChatMenu" class="ghost">Chats ▾</button>
     <div class="grow"></div>
@@ -34,6 +37,7 @@
       <div id="menuEmail" class="menuitem text muted"></div>
       <div class="menusep"></div>
       <button id="menuChooseAvatar" role="menuitem">Choose avatar</button>
+      <button id="menuToggleNotify" role="menuitem">Enable notifications</button>
       <div class="menusep"></div>
       <button id="menuLogout" role="menuitem">Logout</button>
     </div>

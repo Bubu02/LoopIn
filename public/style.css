@@ -155,11 +155,23 @@ button.small { padding:6px 10px; font-size:12px; }
   padding:6px 4px; color:var(--fg); font-size:15px; line-height:1.2;
 }
 .sendbtn {
-  width:36px; height:36px; border-radius:9999px;
-  display:grid; place-items:center; background:var(--accent);
-  border:none; cursor:pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
 }
-.sendbtn .sendicon { width:16px; height:16px; fill:#001018; }
+
+.sendbtn .sendicon {
+  width: 16px;
+  height: 16px;
+  fill: #001018;
+  transform: rotate(-45deg); /* Tilt toward northeast */
+}
+
 
 /* ── Message bubbles ───────────────────────────────────── */
 .msgrow { display:flex; align-items:flex-end; gap:8px; }
@@ -191,12 +203,20 @@ button.small { padding:6px 10px; font-size:12px; }
 
 /* Ticks (bottom-right corner of my bubbles) */
 .ticks {
-  position:absolute;
-  right:10px; bottom:8px;
-  font-size:12px; line-height:1;
-  color:#8a8a8a; user-select:none;
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  font-size: 12px;
+  line-height: 1;
+  color: #8a8a8a;
+  user-select: none;
+  letter-spacing: -0.25px; /* Pull ticks closer together */
+  font-family: 'Segoe UI', sans-serif; /* Optional: clean, compact font */
 }
-.ticks.seen { color: var(--accent); }
+
+.ticks.seen {
+  color: var(--accent);
+}
 
 /* ── Overlays ───────────────────────────────────────────── */
 .overlay {
