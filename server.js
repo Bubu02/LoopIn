@@ -33,6 +33,10 @@ const rooms = new Map();
 */
 const userRooms = new Map(); // emailLower -> Set<code>
 
+/* --- typing timers: code -> email -> Timeout --- */
+const typingTimers = new Map();
+const TYPING_TIMEOUT_MS = 5000;
+
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 const genCode = (n = 8) =>
   Array.from(crypto.randomFillSync(new Uint32Array(n)))
@@ -198,8 +202,10 @@ io.on("connection", (socket) => {
     room.participants.add(u.email);
     attachUserToRoom(u.email, u.code);
 
-    // emit to everyone
-    io.to(u.code).emit("message", { ...msg, seenBy: undefined }); // do not send Set over the wire
+    io.to(u.code).emit("message", { ...msg, seenBy: undefined });
+
+    // sender clearly stopped typing
+    clearTyping(u.code, u.email);
   });
 
   /* Mark one or more messages as seen by this viewer */
@@ -215,7 +221,6 @@ io.on("connection", (socket) => {
       if (m.email !== viewer && !m.seenBy.has(viewer)) {
         m.seenBy.add(viewer);
 
-        // upgrade sender ticks from ✓ to ✓✓ when at least one viewer has seen
         if (m.status !== "seen" && m.seenBy.size >= 1) {
           m.status = "seen";
           io.to(code).emit("messageSeen", { id: m.id });
@@ -223,7 +228,43 @@ io.on("connection", (socket) => {
       }
     }
   });
+
+  /* ===== Typing indicator ===== */
+  socket.on("typing", () => {
+    const u = socket.data.user;
+    if (!u?.code) return;
+    socket.to(u.code).emit("peerTyping", { email: u.email, name: u.name || "Someone" });
+    ensureTypingTimer(u.code, u.email);
+  });
+
+  socket.on("stopTyping", () => {
+    const u = socket.data.user;
+    if (!u?.code) return;
+    clearTyping(u.code, u.email);
+  });
+
+  socket.on("disconnect", () => {
+    const u = socket.data.user;
+    if (u?.code && u?.email) clearTyping(u.code, u.email);
+  });
 });
+
+/* --- helpers for typing timers --- */
+function ensureTypingTimer(code, email) {
+  if (!typingTimers.has(code)) typingTimers.set(code, new Map());
+  const perRoom = typingTimers.get(code);
+  if (perRoom.has(email)) clearTimeout(perRoom.get(email));
+  perRoom.set(email, setTimeout(() => clearTyping(code, email), TYPING_TIMEOUT_MS));
+}
+
+function clearTyping(code, email) {
+  const perRoom = typingTimers.get(code);
+  if (!perRoom) return;
+  const tid = perRoom.get(email);
+  if (tid) clearTimeout(tid);
+  perRoom.delete(email);
+  io.to(code).emit("peerStopTyping", { email });
+}
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));

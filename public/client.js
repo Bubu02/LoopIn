@@ -19,7 +19,11 @@ const state = {
   socket: null,
   me: { name: null, email: null, avatarUrl: AVATARS[0] },
   notifyEnabled: false,
-  windowFocused: true
+  windowFocused: true,
+
+  // typing (new)
+  typers: new Map(),                 // email -> { name, lastAt }
+  typingLocal: { isTyping:false, lastSent:0, idleTimer:null }
 };
 
 /* ========== storage utils (robust) ========== */
@@ -67,10 +71,8 @@ window.addEventListener("blur",  ()=> state.windowFocused = false);
 
 function maybeNotify({ title, body }){
   if (!state.notifyEnabled) return;
-  if (document.visibilityState === "visible" && state.windowFocused) return; // don't notify when user is here
-  try {
-    new Notification(title, { body, icon: "/favicon.png", badge: "/favicon.png" });
-  } catch {}
+  if (document.visibilityState === "visible" && state.windowFocused) return;
+  try { new Notification(title, { body, icon: "/favicon.png", badge: "/favicon.png" }); } catch {}
 }
 
 /* ========== identity flow ========== */
@@ -232,14 +234,17 @@ if (roomNameEdit){
 }
 function showRoomName(name){ state.roomName = name || "(unnamed)"; if (roomNameText) roomNameText.textContent = state.roomName; if (roomNameEdit) roomNameEdit.value = state.roomName; }
 
-/* ========== Socket & messages (with ticks + notifications) ========== */
+/* ========== Socket & messages (with ticks + notifications + typing) ========== */
 function setRoomUI(code, roomName){
   state.code = code;
   showRoomName(roomName||"");
   const rc = must("#roomCode"); if(rc) rc.textContent = code || "";
   const msgs = must("#messages"); if(msgs) msgs.innerHTML="";
+  // reset typing hint
+  state.typers.clear(); renderTyping();
   showChat();
 }
+
 function connectSocket(){
   if (state.socket) state.socket.disconnect();
   state.socket = io();
@@ -281,13 +286,103 @@ function connectSocket(){
     if (tick) tick.classList.add("seen"), (tick.textContent = "✓✓");
   });
 
+  // Typing from peers (new)
+  state.socket.on("peerTyping", ({ email, name }) => {
+    const me = (state.me.email || "").toLowerCase();
+    const key = (email || "").toLowerCase();
+    if (!key || key === me) return;
+    state.typers.set(key, { name: name || "Someone", lastAt: Date.now() });
+    renderTyping();
+  });
+  state.socket.on("peerStopTyping", ({ email }) => {
+    const key = (email || "").toLowerCase();
+    if (!key) return;
+    state.typers.delete(key);
+    renderTyping();
+  });
+
   state.socket.on("roomRenamed",({ roomName })=> showRoomName(roomName||""));
   state.socket.on("roomDeleted",({ code })=>{ if (state.code===code){ alert("Room was deleted by the creator."); state.code=null; showEmpty(); refreshRooms(); }});
   state.socket.on("system",(txt)=>console.log(txt));
   state.socket.on("errorMsg",(msg)=>alert(msg));
 }
 
-/* Report seen */
+/* ===== Typing emission (client side) ===== */
+const TYPING_DEBOUNCE_MS = 400;
+const TYPING_IDLE_MS = 1600;
+
+const msgInput = must("#msg");
+if (msgInput){
+  msgInput.addEventListener("input", onInputChanged);
+  msgInput.addEventListener("focus", onInputChanged);
+  msgInput.addEventListener("blur",  () => sendStopTyping());
+}
+
+on("#sendForm","submit",(e)=>{
+  e.preventDefault();
+  const text = msgInput?.value?.trim();
+  if (!state.code){ alert("Join or create a room first (use Chats ▾)."); return; }
+  if (!text) return;
+  state.socket.emit("message",{ text });
+  msgInput.value = "";
+  sendStopTyping(true);
+  scrollToBottom();
+});
+
+function onInputChanged(){
+  const val = (msgInput?.value || "").trim();
+  if (!state.socket?.connected || !state.code) return;
+
+  // idle timeout to send stopTyping if user pauses
+  if (state.typingLocal.idleTimer) clearTimeout(state.typingLocal.idleTimer);
+  state.typingLocal.idleTimer = setTimeout(()=> sendStopTyping(), TYPING_IDLE_MS);
+
+  if (val.length > 0) {
+    const now = Date.now();
+    if (now - state.typingLocal.lastSent > TYPING_DEBOUNCE_MS) {
+      state.socket.emit("typing");
+      state.typingLocal.lastSent = now;
+      state.typingLocal.isTyping = true;
+    }
+  } else {
+    sendStopTyping();
+  }
+}
+function sendStopTyping(force=false){
+  if (!state.socket?.connected || !state.code) return;
+  if (!state.typingLocal.isTyping && !force) return;
+  state.typingLocal.isTyping = false;
+  state.socket.emit("stopTyping");
+  if (state.typingLocal.idleTimer) { clearTimeout(state.typingLocal.idleTimer); state.typingLocal.idleTimer = null; }
+}
+
+/* ===== Typing hint render (client side) ===== */
+function renderTyping(){
+  // defensive cleanup in case a peer disappears
+  const now = Date.now();
+  for (const [email, info] of state.typers) {
+    if (now - (info.lastAt || 0) > 5000) state.typers.delete(email);
+  }
+
+  const el = must("#typingHint"); if (!el) return;
+  const names = [...state.typers.values()].map(v => v.name).filter(Boolean);
+
+  if (names.length === 0) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+
+  let text;
+  if (names.length === 1) text = `${names[0]} is typing…`;
+  else if (names.length === 2) text = `${names[0]} and ${names[1]} are typing…`;
+  else text = `${names.length} people are typing…`;
+
+  el.textContent = text;
+  el.classList.remove("hidden");
+}
+
+/* ===== Seen reporting ===== */
 function reportSeenFor(ids){
   if (!ids?.length || !state.socket?.connected || !state.code) return;
   state.socket.emit("markSeen", { code: state.code, messageIds: ids });
@@ -296,7 +391,7 @@ function reportSeenFor(ids){
 /* copy room code */
 on("#copyCode","click",async()=>{ if(!state.code) return; try{ await navigator.clipboard.writeText(state.code); alert("Room code copied"); }catch{ alert("Could not copy"); }});
 
-/* Render messages (ticks element placed after text for bottom-right CSS) */
+/* Render messages */
 function addMessageRow(m,{initialLoad=false}={}){
   const msgs = must("#messages"); if(!msgs) return;
   const mine = (m.email||"").toLowerCase() === (state.me.email||"").toLowerCase();
@@ -333,11 +428,6 @@ function addMessageRow(m,{initialLoad=false}={}){
 
 function isNearBottom(){ const el = must("#messages"); if(!el) return true; return el.scrollTop + el.clientHeight >= el.scrollHeight - 80; }
 function scrollToBottom(immediate=false){ const el = must("#messages"); if(!el) return; if(immediate) el.scrollTop = el.scrollHeight; else el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }); }
-
-/* send */
-on("#sendForm","submit",(e)=>{ e.preventDefault(); const input = must("#msg"); const text = input?.value?.trim();
-  if (!state.code){ alert("Join or create a room first (use Chats ▾)."); return; }
-  if (!text) return; state.socket.emit("message",{ text }); if (input) input.value=""; scrollToBottom(); });
 
 /* join helper */
 async function joinRoom(code, roomName=""){

@@ -27,16 +27,13 @@ body {
 
 /* Image logo that replaces the text title */
 .logo {
-  height: 28px;            /* tweak as you like */
+  height: 28px;
   width: auto;
   display: block;
   object-fit: contain;
 }
 
-.topbar h1 {               /* only used if you keep text fallback */
-  font-size:18px; margin:0;
-}
-
+.topbar h1 { font-size:18px; margin:0; }
 .grow { flex:1; }
 
 /* ── Buttons & inputs ───────────────────────────────────── */
@@ -142,6 +139,17 @@ button.small { padding:6px 10px; font-size:12px; }
 }
 #messages::-webkit-scrollbar{ display:none; }
 
+/* --- Typing indicator (new) --- */
+.typing {
+  margin:6px 10px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  min-height: 18px; /* reserve a little space to avoid layout jump */
+  opacity: 1;
+  transition: opacity .15s ease;
+}
+.typing.hidden { opacity: 0; height: 0; margin-top:0; }
+
 /* ── Composer (shorter height) ──────────────────────────── */
 .composer-shell { position:sticky; bottom:0; background:#040404; padding-top:6px; }
 .composer {
@@ -164,14 +172,12 @@ button.small { padding:6px 10px; font-size:12px; }
   border: none;
   cursor: pointer;
 }
-
 .sendbtn .sendicon {
   width: 16px;
   height: 16px;
   fill: #001018;
-  transform: rotate(-45deg); /* Tilt toward northeast */
+  transform: rotate(-45deg);
 }
-
 
 /* ── Message bubbles ───────────────────────────────────── */
 .msgrow { display:flex; align-items:flex-end; gap:8px; }
@@ -210,13 +216,10 @@ button.small { padding:6px 10px; font-size:12px; }
   line-height: 1;
   color: #8a8a8a;
   user-select: none;
-  letter-spacing: -0.25px; /* Pull ticks closer together */
-  font-family: 'Segoe UI', sans-serif; /* Optional: clean, compact font */
+  letter-spacing: -0.25px;
+  font-family: 'Segoe UI', sans-serif;
 }
-
-.ticks.seen {
-  color: var(--accent);
-}
+.ticks.seen { color: var(--accent); }
 
 /* ── Overlays ───────────────────────────────────────────── */
 .overlay {
